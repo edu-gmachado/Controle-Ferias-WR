@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <title>Controle de Férias - 3º Turno</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <span class="eyebrow">PWA offline • escala 6x2 • 4 cores</span>
+        <h1>Controle de Férias — 3º Turno</h1>
+        <p>Gerencie férias, acompanhe presença diária e visualize o impacto das ausências na cobertura do time.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="installAppBtn" class="btn ghost hidden" type="button">Instalar app</button>
+        <button id="exportBtnTop" class="btn primary" type="button">Exportar backup</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="toolbar panel" aria-label="Filtros principais">
+        <div class="field compact">
+          <label for="selectedDate">Data analisada</label>
+          <input type="date" id="selectedDate" />
+        </div>
+        <div class="field compact">
+          <label for="monthPicker">Calendário mensal</label>
+          <input type="month" id="monthPicker" />
+        </div>
+        <div class="toolbar-buttons">
+          <button id="todayBtn" class="btn secondary" type="button">Hoje</button>
+          <button id="prevMonthBtn" class="btn ghost" type="button">← Mês anterior</button>
+          <button id="nextMonthBtn" class="btn ghost" type="button">Próximo mês →</button>
+        </div>
+      </section>
+
+      <section class="kpis" aria-label="Indicadores principais">
+        <article class="kpi-card">
+          <span>Colaboradores ativos</span>
+          <strong id="kpiActive">0</strong>
+          <small>Equipe cadastrada no 3º turno</small>
+        </article>
+        <article class="kpi-card success">
+          <span>Presentes na data</span>
+          <strong id="kpiPresent">0</strong>
+          <small id="kpiCoverage">0% de cobertura</small>
+        </article>
+        <article class="kpi-card warning">
+          <span>Férias na data</span>
+          <strong id="kpiVacation">0</strong>
+          <small id="kpiVacationImpact">0 impactando escala</small>
+        </article>
+        <article class="kpi-card muted">
+          <span>Folga 6x2</span>
+          <strong id="kpiOff">0</strong>
+          <small>Sem férias cadastradas na data</small>
+        </article>
+        <article class="kpi-card danger">
+          <span>Dias críticos no mês</span>
+          <strong id="kpiCritical">0</strong>
+          <small id="kpiMinimum">Abaixo do mínimo</small>
+        </article>
+      </section>
+
+      <section class="grid-main">
+        <div class="panel calendar-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="calendarTitle">Calendário</h2>
+              <p>Clique em um dia para ver presentes, férias e folgas.</p>
+            </div>
+            <span id="offlineBadge" class="badge">Offline pronto</span>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div class="legend">
+            <span><i class="legend-ok"></i> Cobertura boa</span>
+            <span><i class="legend-alert"></i> Atenção</span>
+            <span><i class="legend-critical"></i> Crítico</span>
+          </div>
+        </div>
+
+        <aside class="panel day-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="dayTitle">Detalhe do dia</h2>
+              <p id="daySubtitle">Resumo da equipe no 3º turno.</p>
+            </div>
+          </div>
+          <div id="dayStatus" class="day-status"></div>
+
+          <div class="people-columns">
+            <section>
+              <h3>Presentes</h3>
+              <div id="presentList" class="person-list empty-aware"></div>
+            </section>
+            <section>
+              <h3>Férias</h3>
+              <div id="vacationList" class="person-list empty-aware"></div>
+            </section>
+            <section>
+              <h3>Folga 6x2</h3>
+              <div id="offList" class="person-list empty-aware"></div>
+            </section>
+          </div>
+        </aside>
+      </section>
+
+      <section class="grid-two">
+        <div class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Membros do time</h2>
+              <p>Adicione, edite, inative ou troque a cor da escala.</p>
+            </div>
+          </div>
+
+          <form id="memberForm" class="form-grid">
+            <input type="hidden" id="memberId" />
+            <div class="field span-2">
+              <label for="memberName">Nome do colaborador</label>
+              <input type="text" id="memberName" placeholder="Ex.: Ana Souza" required />
+            </div>
+            <div class="field">
+              <label for="memberGroup">Cor / grupo 6x2</label>
+              <select id="memberGroup" required></select>
+            </div>
+            <label class="switch-field">
+              <input type="checkbox" id="memberActive" checked />
+              <span>Ativo no 3º turno</span>
+            </label>
+            <div class="form-actions span-2">
+              <button class="btn primary" type="submit">Salvar membro</button>
+              <button id="clearMemberForm" class="btn ghost" type="button">Limpar</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Nome</th><th>Grupo</th><th>Status</th><th>Ações</th></tr>
+              </thead>
+              <tbody id="membersTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Cadastro de férias</h2>
+              <p>Inclua períodos e acompanhe conflitos automaticamente.</p>
+            </div>
+          </div>
+
+          <form id="vacationForm" class="form-grid">
+            <input type="hidden" id="vacationId" />
+            <div class="field span-2">
+              <label for="vacationMember">Colaborador</label>
+              <select id="vacationMember" required></select>
+            </div>
+            <div class="field">
+              <label for="vacationStart">Início</label>
+              <input type="date" id="vacationStart" required />
+            </div>
+            <div class="field">
+              <label for="vacationEnd">Fim</label>
+              <input type="date" id="vacationEnd" required />
+            </div>
+            <div class="field span-2">
+              <label for="vacationNotes">Observação</label>
+              <textarea id="vacationNotes" rows="3" placeholder="Ex.: férias coletivas, abono, ajuste manual..."></textarea>
+            </div>
+            <div id="vacationWarning" class="warning-box hidden span-2"></div>
+            <div class="form-actions span-2">
+              <button class="btn primary" type="submit">Salvar férias</button>
+              <button id="clearVacationForm" class="btn ghost" type="button">Limpar</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row wrap">
+          <div>
+            <h2>Férias cadastradas</h2>
+            <p>Filtre por colaborador, mês e situação.</p>
+          </div>
+          <div class="filters">
+            <select id="filterMember"></select>
+            <input type="month" id="filterMonth" />
+            <select id="filterStatus">
+              <option value="all">Todas</option>
+              <option value="current">Em andamento</option>
+              <option value="future">Futuras</option>
+              <option value="past">Encerradas</option>
+            </select>
+            <button id="clearFiltersBtn" class="btn ghost small" type="button">Limpar filtros</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Colaborador</th><th>Início</th><th>Fim</th><th>Dias corridos</th><th>Situação</th><th>Observação</th><th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="vacationsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid-two settings-grid">
+        <div class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Configurações da escala</h2>
+              <p>A escala é fixa para o 3º turno. Ajuste apenas a data-base, mínimo e defasagem das cores.</p>
+            </div>
+          </div>
+          <form id="settingsForm" class="settings-form">
+            <div class="field">
+              <label for="baseDate">Data-base da escala</label>
+              <input type="date" id="baseDate" required />
+              <small>Nesta data, o grupo com defasagem 0 está no 1º dia de trabalho.</small>
+            </div>
+            <div class="field">
+              <label for="minPresent">Mínimo de presentes por dia</label>
+              <input type="number" id="minPresent" min="1" step="1" required />
+            </div>
+            <div id="groupSettings" class="group-settings"></div>
+            <button class="btn primary" type="submit">Salvar configurações</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Backup e dados</h2>
+              <p>Use JSON para migrar, restaurar ou salvar cópias dos dados.</p>
+            </div>
+          </div>
+          <div class="backup-actions">
+            <button id="exportBtn" class="btn primary" type="button">Exportar backup .json</button>
+            <label class="btn secondary file-label" for="importFile">Importar backup .json</label>
+            <input id="importFile" type="file" accept="application/json,.json" hidden />
+            <button id="sampleBtn" class="btn ghost" type="button">Restaurar exemplo</button>
+            <button id="resetBtn" class="btn danger" type="button">Apagar tudo</button>
+          </div>
+          <div class="tip-box">
+            <strong>Dica:</strong> depois de publicar no GitHub Pages, os dados ficam salvos no navegador de cada dispositivo. Para levar os dados para outro computador ou celular, exporte e importe o JSON.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

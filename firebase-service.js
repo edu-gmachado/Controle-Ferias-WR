@@ -196,12 +196,71 @@
 
     function emitRemoteState() {
       if (!gotSettings || !gotMembers || !gotVacations) return;
-      onData({
-        version: 5,
+
+      const normalizedState = normalizeRemoteState({
+        version: 51,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || []
       });
+
+      onData(normalizedState);
+
+      emitStatus({
+        mode: 'cloud',
+        configured: Boolean(authService?.isConfiguredForCloud?.()),
+        authenticated: Boolean(authService?.isAuthenticated?.()),
+        authorized: Boolean(authService?.isAuthorized?.()),
+        role: authService?.getCurrentRole?.() || null,
+        email: authService?.getCurrentUser?.()?.email || '',
+        uid: authService?.getCurrentUser?.()?.uid || '',
+        message: `Nuvem sincronizada: ${normalizedState.members.length} membro(s), ${normalizedState.vacations.length} férias e configurações carregadas.`
+      });
+    }
+
+    function normalizeRemoteState(remoteState) {
+      const settings = normalizeRemoteSettings(remoteState.settings);
+      const members = (remoteState.members || []).map((member) => ({
+        id: member.id,
+        name: member.name || member.nome || 'Sem nome',
+        sector: member.sector || member.setor || 'fabricacao',
+        group: member.group || member.cor || member.color || 'azul',
+        active: member.active !== false && member.ativo !== false
+      }));
+
+      const vacations = (remoteState.vacations || []).map((vacation) => ({
+        id: vacation.id,
+        memberId: vacation.memberId || vacation.member || vacation.colaboradorId || '',
+        startDate: vacation.startDate || vacation.inicio || vacation.dataInicio || '',
+        endDate: vacation.endDate || vacation.fim || vacation.dataFim || '',
+        notes: vacation.notes || vacation.note || vacation.observacao || ''
+      })).filter((vacation) => vacation.memberId && vacation.startDate && vacation.endDate);
+
+      return {
+        version: 51,
+        settings,
+        members,
+        vacations
+      };
+    }
+
+    function normalizeRemoteSettings(settings) {
+      if (!settings || typeof settings !== 'object') return undefined;
+
+      const normalized = { ...settings };
+
+      if (!normalized.groups && Array.isArray(normalized.groupsOrder)) {
+        const defaultOffsets = { azul: 0, amarelo: 2, vermelho: 4, verde: 6 };
+        normalized.groups = {};
+        normalized.groupsOrder.forEach((key) => {
+          normalized.groups[key] = {
+            name: String(key).charAt(0).toUpperCase() + String(key).slice(1),
+            offset: defaultOffsets[key] ?? 0
+          };
+        });
+      }
+
+      return normalized;
     }
 
     function handleSnapshotError(error) {

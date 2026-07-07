@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.1';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 5;
+  const APP_VERSION = 51;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -1444,7 +1444,7 @@
   }
 
   function saveState() {
-    // A partir da v5, o app não persiste mais dados operacionais no localStorage.
+    // A partir da v5.1, o app não persiste mais dados operacionais no localStorage.
     // Dados devem ficar no Firestore; localStorage antigo só é usado para migração manual.
   }
 

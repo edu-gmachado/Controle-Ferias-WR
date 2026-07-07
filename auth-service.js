@@ -60,6 +60,7 @@
         auth = window.firebase.auth(app);
         db = window.firebase.firestore(app);
 
+        configureSessionPersistence();
         enableOptionalPersistence();
 
         auth.onAuthStateChanged((user) => {
@@ -106,6 +107,16 @@
           uid: '',
           message: 'Não foi possível iniciar o Firebase. Confira firebase-config.js.'
         });
+      }
+    }
+
+    function configureSessionPersistence() {
+      try {
+        auth.setPersistence(window.firebase.auth.Auth.Persistence.SESSION).catch((error) => {
+          console.info('Persistência de sessão do Auth não alterada:', error?.code || error?.message || error);
+        });
+      } catch (error) {
+        console.info('Persistência de sessão do Auth indisponível:', error?.message || error);
       }
     }
 
@@ -175,6 +186,11 @@
 
     async function login(email, password) {
       if (!configured || !auth) throw new Error('Firebase não configurado.');
+      try {
+        await auth.setPersistence(window.firebase.auth.Auth.Persistence.SESSION);
+      } catch (error) {
+        console.info('Persistência de sessão do Auth não alterada antes do login:', error?.code || error?.message || error);
+      }
       await auth.signInWithEmailAndPassword(email, password);
     }
 

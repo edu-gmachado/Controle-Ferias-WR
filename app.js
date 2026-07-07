@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.1';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.2';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 51;
+  const APP_VERSION = 52;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -105,6 +105,9 @@
       filterStatus: $('#filterStatus'),
       clearFiltersBtn: $('#clearFiltersBtn'),
       vacationsTable: $('#vacationsTable'),
+      toggleMembersBtn: $('#toggleMembersBtn'),
+      membersPanelContent: $('#membersPanelContent'),
+      settingsPanel: $('#settingsPanel'),
       toggleSettingsBtn: $('#toggleSettingsBtn'),
       settingsForm: $('#settingsForm'),
       baseDate: $('#baseDate'),
@@ -163,6 +166,12 @@
       els.filterMonth.value = '';
       els.filterStatus.value = 'all';
       renderVacationsTable();
+    });
+
+    els.toggleMembersBtn.addEventListener('click', () => {
+      const hidden = els.membersPanelContent.classList.toggle('hidden');
+      els.toggleMembersBtn.textContent = hidden ? 'Mostrar membros do time' : 'Ocultar membros do time';
+      els.toggleMembersBtn.setAttribute('aria-expanded', String(!hidden));
     });
 
     els.toggleSettingsBtn.addEventListener('click', () => {
@@ -256,6 +265,7 @@
 
   function renderCloudPanel() {
     if (!els.cloudStatusText) return;
+    updateAdminOnlyVisibility();
     const mode = cloudStatus.mode || 'local';
     const configured = Boolean(cloudStatus.configured);
     const authenticated = Boolean(cloudStatus.authenticated);
@@ -308,6 +318,20 @@
     els.cloudBadge.className = 'badge ok';
     els.migrateLocalBtn.disabled = false;
     setEditLock(false);
+  }
+
+
+  function updateAdminOnlyVisibility() {
+    if (!els.settingsPanel) return;
+    const firebaseEnabled = Boolean(window.FERIAS_FIREBASE_CONFIG && window.FERIAS_FIREBASE_CONFIG.enabled);
+    const shouldHideSettings = firebaseEnabled ? cloudRole !== 'admin' : false;
+    els.settingsPanel.classList.toggle('hidden', shouldHideSettings);
+
+    if (shouldHideSettings) {
+      els.settingsForm.classList.add('hidden');
+      els.toggleSettingsBtn.textContent = 'Mostrar configurações de escala';
+      els.toggleSettingsBtn.setAttribute('aria-expanded', 'false');
+    }
   }
 
   function setEditLock(locked) {
@@ -537,7 +561,6 @@
       const statusClass = attention.isAttention ? 'alert' : 'ok-day';
       const todayClass = dateISO === todayISO() ? 'today' : '';
       const selectedClass = dateISO === selectedDate ? 'selected' : '';
-      const width = Math.max(0, Math.min(100, day.coveragePercent));
       const offGroups = offGroupsForDate(dateISO);
       const colorStrip = renderDayColorStrip(dateISO);
       const bands = renderVacationBands(dateISO, currentMonth);
@@ -558,7 +581,6 @@
             <span>Folgas <strong>${day.off.length}</strong></span>
           </span>
           ${bands}
-          <span class="coverage-bar" title="${day.coveragePercent}% de cobertura"><i style="width:${width}%"></i></span>
         </button>
       `);
     }
@@ -1021,22 +1043,21 @@
     for (let index = 0; index < limit; index += 1) {
       const dateISO = addDaysISO(startDate, index);
       const schedule = scheduleForMember(member, dateISO);
-      const working = workingGroupsForDate(dateISO);
       const off = offGroupsForDate(dateISO);
       rows.push(`
         <div class="preview-day">
           <strong>${formatShortDate(dateISO)}</strong>
-          <span class="preview-colors" title="Trabalham: ${working.map(groupName).join(', ')}. Folga: ${off.map(groupName).join(', ')}">
-            ${GROUPS.map((group) => `<i class="color-dot ${GROUP_CLASS[group]} ${working.includes(group) ? '' : 'off'}" title="${escapeAttr(groupName(group))}"></i>`).join('')}
+          <span class="preview-colors" title="Folga: ${off.map(groupName).join(', ')}">
+            ${off.map((group) => `<i class="color-dot ${GROUP_CLASS[group]}" title="${escapeAttr(groupName(group))}: folga"></i>`).join('')}
           </span>
-          <small>${groupName(member.group)}: ${schedule.works ? 'trabalharia' : 'folga 6x2'}</small>
+          <small>Folga do dia: ${off.map(groupName).join(' • ')}. ${groupName(member.group)}: ${schedule.works ? 'trabalharia' : 'folga 6x2'}</small>
         </div>
       `);
     }
 
     els.vacationDayPreview.innerHTML = `
       <div class="preview-title">
-        <strong>Cores da escala no período</strong>
+        <strong>Cor de folga no período</strong>
         <span>${totalDays} dia${totalDays === 1 ? '' : 's'} corrido${totalDays === 1 ? '' : 's'}</span>
       </div>
       <div class="preview-grid">${rows.join('')}</div>

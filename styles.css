@@ -887,3 +887,42 @@ tbody tr:last-child td { border-bottom: 0; }
     justify-content: center;
   }
 }
+
+/* Atualização v5.2: ajustes estéticos solicitados */
+.hero h1 {
+  margin: 0;
+}
+
+.calendar-toolbar {
+  margin-bottom: -2px;
+}
+
+.vacation-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.members-panel-content {
+  margin-top: 14px;
+}
+
+.coverage-bar {
+  display: none !important;
+}
+
+.preview-colors {
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .calendar-toolbar .field.compact,
+  .calendar-toolbar .toolbar-buttons,
+  .calendar-toolbar .btn {
+    width: 100%;
+  }
+}

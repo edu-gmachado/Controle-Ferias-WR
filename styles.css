@@ -614,6 +614,14 @@ tbody tr:last-child td { border-bottom: 0; }
   width: 100%;
 }
 
+.calendar-color-strip.single-off {
+  grid-template-columns: 1fr;
+}
+
+.calendar-color-strip.single-off .color-segment {
+  height: 10px;
+}
+
 .color-segment {
   height: 8px;
   border-radius: 999px;

@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v4';
-  const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 4;
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5';
+  const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
+  const APP_VERSION = 5;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -18,8 +18,8 @@
 
   const $ = (selector) => document.querySelector(selector);
 
-  let state = loadState();
-  let initialLocalState = structuredCloneSafe(state);
+  let state = createEmptyState();
+  let initialLocalState = null;
   let authService = null;
   let dataService = null;
   let cloudConfigured = false;
@@ -38,7 +38,7 @@
   function init() {
     cacheElements();
     ensureStateShape();
-    initialLocalState = structuredCloneSafe(state);
+    initialLocalState = readMigratableLocalState();
     selectedDate = todayISO();
     currentMonth = selectedDate.slice(0, 7);
     els.selectedDate.value = selectedDate;
@@ -219,7 +219,6 @@
       onData: (remoteState) => {
         state = remoteState;
         ensureStateShape();
-        saveState();
         renderAll();
       }
     });
@@ -235,11 +234,23 @@
   }
 
   function applyCloudStatus(status) {
+    const previousAuthenticated = cloudAuthenticated;
     cloudStatus = status || cloudStatus;
     cloudConfigured = Boolean(cloudStatus.configured);
     cloudAuthenticated = Boolean(cloudStatus.authenticated);
     cloudAuthorized = Boolean(cloudStatus.authorized);
     cloudRole = cloudStatus.role || null;
+
+    if (cloudConfigured && (!cloudAuthenticated || !cloudAuthorized)) {
+      state = createEmptyState();
+      clearMemberFormSafe();
+      clearVacationFormSafe();
+      if (previousAuthenticated || state.members.length || state.vacations.length) {
+        renderAll();
+        return;
+      }
+    }
+
     renderCloudPanel();
   }
 
@@ -362,6 +373,16 @@
     }
   }
 
+  function clearMemberFormSafe() {
+    if (!els.memberId) return;
+    clearMemberForm();
+  }
+
+  function clearVacationFormSafe() {
+    if (!els.vacationId) return;
+    clearVacationForm();
+  }
+
   async function migrateLocalDataToCloud() {
     if (!isCloudWriteMode()) {
       showToast(cloudWriteBlockMessage() || 'Entre como administrador para migrar dados locais.');
@@ -370,10 +391,16 @@
     const message = 'Migrar os dados locais salvos neste navegador para a nuvem? Isso substituirá os dados atuais do Firestore para este app.';
     if (!window.confirm(message)) return;
     try {
-      const localState = structuredCloneSafe(initialLocalState || loadState());
+      const localState = structuredCloneSafe(initialLocalState || readMigratableLocalState());
+      if (!localState || (!localState.members.length && !localState.vacations.length)) {
+        showToast('Não há dados locais antigos para migrar neste navegador.');
+        return;
+      }
       ensureExternalStateShape(localState);
       await dataService.replaceAll(localState);
-      showToast('Dados locais enviados para a nuvem.');
+      clearLocalStorageData();
+      initialLocalState = null;
+      showToast('Dados locais enviados para a nuvem e removidos deste navegador.');
     } catch (error) {
       console.error(error);
       showToast('Não foi possível migrar os dados locais.');
@@ -399,7 +426,6 @@
 
   function renderAll() {
     ensureStateShape();
-    saveState();
     renderCloudPanel();
     renderSelectors();
     renderSettingsForm();
@@ -512,7 +538,6 @@
       const todayClass = dateISO === todayISO() ? 'today' : '';
       const selectedClass = dateISO === selectedDate ? 'selected' : '';
       const width = Math.max(0, Math.min(100, day.coveragePercent));
-      const workingGroups = workingGroupsForDate(dateISO);
       const offGroups = offGroupsForDate(dateISO);
       const colorStrip = renderDayColorStrip(dateISO);
       const bands = renderVacationBands(dateISO, currentMonth);
@@ -524,8 +549,8 @@
             <span class="attention-tag ${attention.isAttention ? 'alert' : 'ok'}">${attention.isAttention ? 'Atenção' : 'Boa'}</span>
           </span>
           ${colorStrip}
-          <span class="day-colors-label" title="Trabalham: ${workingGroups.map(groupName).join(', ')}. Folga: ${offGroups.map(groupName).join(', ')}">
-            Trabalham: ${workingGroups.map(shortGroupName).join(' • ')}
+          <span class="day-colors-label" title="Folga: ${offGroups.map(groupName).join(', ')}">
+            Folga: ${offGroups.map(shortGroupName).join(' • ')}
           </span>
           <span class="day-lines">
             <span>Pres. <strong>${day.present.length}</strong></span>
@@ -1097,12 +1122,15 @@
           await dataService.replaceAll(importedState);
           showToast('Backup importado para a nuvem com sucesso.');
         } else {
+          if (shouldBlockWrite()) {
+            showToast(cloudWriteBlockMessage() || 'Entre como administrador para importar dados.');
+            return;
+          }
           state = importedState;
           ensureStateShape();
-          saveState();
           clearMemberForm();
           clearVacationForm();
-          showToast('Backup importado com sucesso.');
+          showToast('Backup importado apenas para esta sessão. Configure a nuvem para manter os dados.');
           renderAll();
         }
       } catch (error) {
@@ -1129,8 +1157,7 @@
           return;
         }
         state = sample;
-        saveState();
-        showToast('Dados de exemplo restaurados.');
+        showToast('Dados de exemplo carregados apenas nesta sessão. Configure a nuvem para manter os dados.');
         renderAll();
       }
 
@@ -1161,8 +1188,7 @@
           return;
         }
         state = empty;
-        saveState();
-        showToast('Todos os dados foram apagados.');
+        showToast('Todos os dados foram apagados desta sessão.');
         renderAll();
       }
       clearMemberForm();
@@ -1225,10 +1251,10 @@
   }
 
   function renderDayColorStrip(dateISO) {
-    const working = workingGroupsForDate(dateISO);
+    const off = offGroupsForDate(dateISO);
     return `
-      <span class="calendar-color-strip" aria-label="Cores da escala no dia">
-        ${GROUPS.map((group) => `<i class="color-segment ${GROUP_CLASS[group]} ${working.includes(group) ? '' : 'off'}" title="${escapeAttr(groupName(group))}: ${working.includes(group) ? 'trabalha' : 'folga'}"></i>`).join('')}
+      <span class="calendar-color-strip single-off" aria-label="Cor em folga no dia">
+        ${off.map((group) => `<i class="color-segment ${GROUP_CLASS[group]}" title="${escapeAttr(groupName(group))}: folga"></i>`).join('')}
       </span>
     `;
   }
@@ -1394,25 +1420,32 @@
     renderAll();
   }
 
-  function loadState() {
-    let raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      for (const legacyKey of LEGACY_STORAGE_KEYS) {
-        raw = localStorage.getItem(legacyKey);
-        if (raw) break;
+  function readMigratableLocalState() {
+    const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS];
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const candidate = parsed && parsed.data ? parsed.data : parsed;
+        if (candidate && typeof candidate === 'object') {
+          ensureExternalStateShape(candidate);
+          return candidate;
+        }
+      } catch {
+        // ignora entradas antigas inválidas
       }
     }
-    if (!raw) return createSampleState();
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : createSampleState();
-    } catch {
-      return createSampleState();
-    }
+    return null;
+  }
+
+  function clearLocalStorageData() {
+    [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach((key) => localStorage.removeItem(key));
   }
 
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // A partir da v5, o app não persiste mais dados operacionais no localStorage.
+    // Dados devem ficar no Firestore; localStorage antigo só é usado para migração manual.
   }
 
   function createEmptyState() {
@@ -1461,7 +1494,7 @@
   }
 
   function ensureStateShape() {
-    if (!state || typeof state !== 'object') state = createSampleState();
+    if (!state || typeof state !== 'object') state = createEmptyState();
     const previousVersion = Number(state.version || 1);
     if (!state.settings) state.settings = createEmptyState().settings;
     if (!state.settings.baseDate) state.settings.baseDate = todayISO();

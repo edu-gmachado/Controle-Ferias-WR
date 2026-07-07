@@ -197,7 +197,7 @@
     function emitRemoteState() {
       if (!gotSettings || !gotMembers || !gotVacations) return;
       onData({
-        version: 4,
+        version: 5,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || []

@@ -1,19 +1,32 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v1';
-  const GROUPS = ['azul', 'verde', 'amarelo', 'vermelho'];
-  const GROUP_CLASS = { azul: 'blue', verde: 'green', amarelo: 'yellow', vermelho: 'red' };
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v4';
+  const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
+  const APP_VERSION = 4;
+  const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
+  const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
     azul: { name: 'Azul', offset: 0 },
-    verde: { name: 'Verde', offset: 2 },
-    amarelo: { name: 'Amarelo', offset: 4 },
-    vermelho: { name: 'Vermelho', offset: 6 }
+    amarelo: { name: 'Amarelo', offset: 2 },
+    vermelho: { name: 'Vermelho', offset: 4 },
+    verde: { name: 'Verde', offset: 6 }
   };
+  const SECTORS = ['fabricacao', 'embalagem'];
+  const SECTOR_LABELS = { fabricacao: 'Fabricação', embalagem: 'Embalagem' };
+  const SECTOR_CLASS = { fabricacao: 'fabricacao', embalagem: 'embalagem' };
 
   const $ = (selector) => document.querySelector(selector);
 
   let state = loadState();
+  let initialLocalState = structuredCloneSafe(state);
+  let authService = null;
+  let dataService = null;
+  let cloudConfigured = false;
+  let cloudAuthenticated = false;
+  let cloudAuthorized = false;
+  let cloudRole = null;
+  let cloudStatus = { mode: 'local', configured: false, authenticated: false, message: 'Modo local.' };
   let selectedDate = todayISO();
   let currentMonth = selectedDate.slice(0, 7);
   let deferredInstallPrompt = null;
@@ -25,6 +38,7 @@
   function init() {
     cacheElements();
     ensureStateShape();
+    initialLocalState = structuredCloneSafe(state);
     selectedDate = todayISO();
     currentMonth = selectedDate.slice(0, 7);
     els.selectedDate.value = selectedDate;
@@ -33,10 +47,20 @@
     setupEvents();
     registerServiceWorker();
     renderAll();
+    initDataLayer();
   }
 
   function cacheElements() {
     Object.assign(els, {
+      cloudPanel: $('#cloudPanel'),
+      cloudStatusText: $('#cloudStatusText'),
+      cloudBadge: $('#cloudBadge'),
+      loginForm: $('#loginForm'),
+      loginEmail: $('#loginEmail'),
+      loginPassword: $('#loginPassword'),
+      cloudActions: $('#cloudActions'),
+      logoutBtn: $('#logoutBtn'),
+      migrateLocalBtn: $('#migrateLocalBtn'),
       selectedDate: $('#selectedDate'),
       monthPicker: $('#monthPicker'),
       todayBtn: $('#todayBtn'),
@@ -63,6 +87,7 @@
       memberId: $('#memberId'),
       memberName: $('#memberName'),
       memberGroup: $('#memberGroup'),
+      memberSector: $('#memberSector'),
       memberActive: $('#memberActive'),
       clearMemberForm: $('#clearMemberForm'),
       membersTable: $('#membersTable'),
@@ -73,15 +98,16 @@
       vacationEnd: $('#vacationEnd'),
       vacationNotes: $('#vacationNotes'),
       vacationWarning: $('#vacationWarning'),
+      vacationDayPreview: $('#vacationDayPreview'),
       clearVacationForm: $('#clearVacationForm'),
       filterMember: $('#filterMember'),
       filterMonth: $('#filterMonth'),
       filterStatus: $('#filterStatus'),
       clearFiltersBtn: $('#clearFiltersBtn'),
       vacationsTable: $('#vacationsTable'),
+      toggleSettingsBtn: $('#toggleSettingsBtn'),
       settingsForm: $('#settingsForm'),
       baseDate: $('#baseDate'),
-      minPresent: $('#minPresent'),
       groupSettings: $('#groupSettings'),
       exportBtn: $('#exportBtn'),
       exportBtnTop: $('#exportBtnTop'),
@@ -124,9 +150,9 @@
     els.vacationForm.addEventListener('submit', saveVacationFromForm);
     els.clearVacationForm.addEventListener('click', clearVacationForm);
     ['change', 'input'].forEach((eventName) => {
-      els.vacationMember.addEventListener(eventName, renderVacationWarning);
-      els.vacationStart.addEventListener(eventName, renderVacationWarning);
-      els.vacationEnd.addEventListener(eventName, renderVacationWarning);
+      els.vacationMember.addEventListener(eventName, renderVacationAssistant);
+      els.vacationStart.addEventListener(eventName, renderVacationAssistant);
+      els.vacationEnd.addEventListener(eventName, renderVacationAssistant);
     });
 
     els.filterMember.addEventListener('change', renderVacationsTable);
@@ -139,12 +165,21 @@
       renderVacationsTable();
     });
 
+    els.toggleSettingsBtn.addEventListener('click', () => {
+      const hidden = els.settingsForm.classList.toggle('hidden');
+      els.toggleSettingsBtn.textContent = hidden ? 'Mostrar configurações de escala' : 'Ocultar configurações de escala';
+      els.toggleSettingsBtn.setAttribute('aria-expanded', String(!hidden));
+    });
+
     els.settingsForm.addEventListener('submit', saveSettings);
     els.exportBtn.addEventListener('click', exportBackup);
     els.exportBtnTop.addEventListener('click', exportBackup);
     els.importFile.addEventListener('change', importBackup);
     els.sampleBtn.addEventListener('click', restoreSampleData);
     els.resetBtn.addEventListener('click', resetAllData);
+    els.loginForm.addEventListener('submit', loginToCloud);
+    els.logoutBtn.addEventListener('click', logoutFromCloud);
+    els.migrateLocalBtn.addEventListener('click', migrateLocalDataToCloud);
 
     els.installAppBtn.addEventListener('click', async () => {
       if (!deferredInstallPrompt) return;
@@ -159,6 +194,190 @@
       deferredInstallPrompt = event;
       els.installAppBtn.classList.remove('hidden');
     });
+  }
+
+  function initDataLayer() {
+    if (!window.FeriasAuthService || typeof window.FeriasAuthService.create !== 'function' ||
+        !window.FeriasCloud || typeof window.FeriasCloud.create !== 'function') {
+      cloudStatus = {
+        mode: 'local',
+        configured: false,
+        authenticated: false,
+        authorized: false,
+        role: null,
+        message: 'Modo local: serviços Firebase não encontrados.'
+      };
+      renderCloudPanel();
+      return;
+    }
+
+    authService = window.FeriasAuthService.create();
+    dataService = window.FeriasCloud.create(authService);
+
+    dataService.init({
+      onStatus: applyCloudStatus,
+      onData: (remoteState) => {
+        state = remoteState;
+        ensureStateShape();
+        saveState();
+        renderAll();
+      }
+    });
+
+    authService.init({
+      onStatus: (status) => {
+        applyCloudStatus(status);
+        if (dataService && typeof dataService.handleAuthStatus === 'function') {
+          dataService.handleAuthStatus(status);
+        }
+      }
+    });
+  }
+
+  function applyCloudStatus(status) {
+    cloudStatus = status || cloudStatus;
+    cloudConfigured = Boolean(cloudStatus.configured);
+    cloudAuthenticated = Boolean(cloudStatus.authenticated);
+    cloudAuthorized = Boolean(cloudStatus.authorized);
+    cloudRole = cloudStatus.role || null;
+    renderCloudPanel();
+  }
+
+  function renderCloudPanel() {
+    if (!els.cloudStatusText) return;
+    const mode = cloudStatus.mode || 'local';
+    const configured = Boolean(cloudStatus.configured);
+    const authenticated = Boolean(cloudStatus.authenticated);
+    const authorized = Boolean(cloudStatus.authorized);
+    const role = cloudStatus.role || null;
+    const message = cloudStatus.message || 'Modo local.';
+
+    els.cloudStatusText.textContent = message;
+
+    if (!configured) {
+      els.cloudBadge.textContent = 'Local';
+      els.cloudBadge.className = 'badge alert';
+      els.loginForm.classList.add('hidden');
+      els.cloudActions.classList.add('hidden');
+      els.migrateLocalBtn.disabled = true;
+      setEditLock(false);
+      return;
+    }
+
+    if (configured && !authenticated) {
+      els.cloudBadge.textContent = 'Login necessário';
+      els.cloudBadge.className = 'badge alert';
+      els.loginForm.classList.remove('hidden');
+      els.cloudActions.classList.add('hidden');
+      els.migrateLocalBtn.disabled = true;
+      setEditLock(true);
+      return;
+    }
+
+    els.loginForm.classList.add('hidden');
+    els.cloudActions.classList.remove('hidden');
+
+    if (!authorized) {
+      els.cloudBadge.textContent = 'Sem permissão';
+      els.cloudBadge.className = 'badge alert';
+      els.migrateLocalBtn.disabled = true;
+      setEditLock(true);
+      return;
+    }
+
+    if (role === 'viewer') {
+      els.cloudBadge.textContent = 'Visualizador';
+      els.cloudBadge.className = 'badge ok';
+      els.migrateLocalBtn.disabled = true;
+      setEditLock(true);
+      return;
+    }
+
+    els.cloudBadge.textContent = mode === 'cloud' ? 'Admin' : 'Local';
+    els.cloudBadge.className = 'badge ok';
+    els.migrateLocalBtn.disabled = false;
+    setEditLock(false);
+  }
+
+  function setEditLock(locked) {
+    const selectors = [
+      '#memberForm input', '#memberForm select', '#memberForm button',
+      '#vacationForm input', '#vacationForm select', '#vacationForm textarea', '#vacationForm button',
+      '#settingsForm input', '#settingsForm button',
+      '#sampleBtn', '#resetBtn', '#importFile'
+    ];
+    document.querySelectorAll(selectors.join(',')).forEach((element) => {
+      if (element.id === 'toggleSettingsBtn') return;
+      element.disabled = locked;
+    });
+  }
+
+  function isCloudWriteMode() {
+    return Boolean(dataService && dataService.canWrite && dataService.canWrite());
+  }
+
+  function canEditData() {
+    return !cloudConfigured || isCloudWriteMode();
+  }
+
+  function cloudWriteBlockMessage() {
+    if (!cloudConfigured) return '';
+    if (!cloudAuthenticated) return 'Entre na nuvem antes de alterar dados.';
+    if (!cloudAuthorized) return 'Seu usuário não tem permissão neste banco. Confira o documento roles no Firestore.';
+    if (cloudRole === 'viewer') return 'Seu acesso é de visualizador. Apenas administradores podem alterar dados.';
+    return 'Você precisa estar logado como administrador para alterar dados.';
+  }
+
+  function shouldBlockWrite() {
+    return cloudConfigured && !isCloudWriteMode();
+  }
+
+  async function loginToCloud(event) {
+    event.preventDefault();
+    if (!authService) return;
+    const email = els.loginEmail.value.trim();
+    const password = els.loginPassword.value;
+    if (!email || !password) {
+      showToast('Informe e-mail e senha.');
+      return;
+    }
+    try {
+      await authService.login(email, password);
+      els.loginPassword.value = '';
+      showToast('Login realizado. Sincronização em tempo real ativada.');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível entrar. Confira e-mail, senha e Firebase.');
+    }
+  }
+
+  async function logoutFromCloud() {
+    if (!authService) return;
+    try {
+      await authService.logout();
+      showToast('Você saiu da sincronização em nuvem.');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível sair da nuvem.');
+    }
+  }
+
+  async function migrateLocalDataToCloud() {
+    if (!isCloudWriteMode()) {
+      showToast(cloudWriteBlockMessage() || 'Entre como administrador para migrar dados locais.');
+      return;
+    }
+    const message = 'Migrar os dados locais salvos neste navegador para a nuvem? Isso substituirá os dados atuais do Firestore para este app.';
+    if (!window.confirm(message)) return;
+    try {
+      const localState = structuredCloneSafe(initialLocalState || loadState());
+      ensureExternalStateShape(localState);
+      await dataService.replaceAll(localState);
+      showToast('Dados locais enviados para a nuvem.');
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível migrar os dados locais.');
+    }
   }
 
   function registerServiceWorker() {
@@ -181,6 +400,7 @@
   function renderAll() {
     ensureStateShape();
     saveState();
+    renderCloudPanel();
     renderSelectors();
     renderSettingsForm();
     renderKpis();
@@ -188,6 +408,7 @@
     renderDayDetails();
     renderMembersTable();
     renderVacationsTable();
+    renderVacationAssistant();
   }
 
   function renderSelectors() {
@@ -200,12 +421,16 @@
     els.memberGroup.innerHTML = groupOptions;
     els.memberGroup.value = GROUPS.includes(currentMemberGroup) ? currentMemberGroup : 'azul';
 
-    const activeMembers = state.members
-      .filter((member) => member.active)
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    const currentSector = els.memberSector.value || 'fabricacao';
+    els.memberSector.innerHTML = SECTORS
+      .map((key) => `<option value="${key}">${SECTOR_LABELS[key]}</option>`)
+      .join('');
+    els.memberSector.value = SECTORS.includes(currentSector) ? currentSector : 'fabricacao';
+
+    const activeMembers = sortedMembers(state.members.filter((member) => member.active));
 
     const memberOptions = activeMembers.map((member) => (
-      `<option value="${member.id}">${escapeHtml(member.name)} — ${escapeHtml(groupName(member.group))}</option>`
+      `<option value="${member.id}">${escapeHtml(member.name)} — ${escapeHtml(sectorName(member.sector))} — ${escapeHtml(groupName(member.group))}</option>`
     )).join('');
 
     const currentVacationMember = els.vacationMember.value;
@@ -216,9 +441,7 @@
 
     const filterCurrent = els.filterMember.value || 'all';
     els.filterMember.innerHTML = '<option value="all">Todos os colaboradores</option>' +
-      state.members
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      sortedMembers(state.members)
         .map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`)
         .join('');
     if (filterCurrent === 'all' || state.members.some((member) => member.id === filterCurrent)) {
@@ -228,7 +451,6 @@
 
   function renderSettingsForm() {
     els.baseDate.value = state.settings.baseDate;
-    els.minPresent.value = state.settings.minPresent;
 
     els.groupSettings.innerHTML = GROUPS.map((key) => {
       const group = state.settings.groups[key];
@@ -252,6 +474,7 @@
 
   function renderKpis() {
     const day = evaluateDay(selectedDate);
+    const attention = getAttentionInfo(day);
     const monthStats = getMonthStats(currentMonth);
     const activeCount = state.members.filter((member) => member.active).length;
     const vacationImpact = day.vacation.filter((item) => item.scheduledToWork).length;
@@ -262,8 +485,10 @@
     els.kpiVacation.textContent = day.vacation.length;
     els.kpiVacationImpact.textContent = `${vacationImpact} impactando escala`;
     els.kpiOff.textContent = day.off.length;
-    els.kpiCritical.textContent = monthStats.criticalDays;
-    els.kpiMinimum.textContent = `Mínimo configurado: ${state.settings.minPresent}`;
+    els.kpiCritical.textContent = monthStats.attentionDays;
+    els.kpiMinimum.textContent = attention.isAttention
+      ? attention.reasons.join(' • ')
+      : 'Sem alerta pela regra atual';
   }
 
   function renderCalendar() {
@@ -282,23 +507,32 @@
     for (let dayNumber = 1; dayNumber <= lastDay; dayNumber += 1) {
       const dateISO = `${currentMonth}-${String(dayNumber).padStart(2, '0')}`;
       const day = evaluateDay(dateISO);
-      const statusClass = day.present.length < state.settings.minPresent
-        ? 'critical'
-        : day.present.length <= state.settings.minPresent + 1
-          ? 'alert'
-          : '';
+      const attention = getAttentionInfo(day);
+      const statusClass = attention.isAttention ? 'alert' : 'ok-day';
       const todayClass = dateISO === todayISO() ? 'today' : '';
       const selectedClass = dateISO === selectedDate ? 'selected' : '';
       const width = Math.max(0, Math.min(100, day.coveragePercent));
+      const workingGroups = workingGroupsForDate(dateISO);
+      const offGroups = offGroupsForDate(dateISO);
+      const colorStrip = renderDayColorStrip(dateISO);
+      const bands = renderVacationBands(dateISO, currentMonth);
 
       cells.push(`
         <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass}" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">
-          <span class="day-number">${dayNumber}</span>
+          <span class="calendar-day-top">
+            <span class="day-number">${dayNumber}</span>
+            <span class="attention-tag ${attention.isAttention ? 'alert' : 'ok'}">${attention.isAttention ? 'Atenção' : 'Boa'}</span>
+          </span>
+          ${colorStrip}
+          <span class="day-colors-label" title="Trabalham: ${workingGroups.map(groupName).join(', ')}. Folga: ${offGroups.map(groupName).join(', ')}">
+            Trabalham: ${workingGroups.map(shortGroupName).join(' • ')}
+          </span>
           <span class="day-lines">
-            <span>Presentes <strong>${day.present.length}</strong></span>
+            <span>Pres. <strong>${day.present.length}</strong></span>
             <span>Férias <strong>${day.vacation.length}</strong></span>
             <span>Folgas <strong>${day.off.length}</strong></span>
           </span>
+          ${bands}
           <span class="coverage-bar" title="${day.coveragePercent}% de cobertura"><i style="width:${width}%"></i></span>
         </button>
       `);
@@ -319,37 +553,36 @@
   function renderDayDetails() {
     const day = evaluateDay(selectedDate);
     const expected = day.expectedWork.length;
-    const critical = day.present.length < state.settings.minPresent;
-    const alert = !critical && day.present.length <= state.settings.minPresent + 1;
-    const statusText = critical ? 'Crítico' : alert ? 'Atenção' : 'Cobertura boa';
-    const statusClass = critical ? 'critical' : alert ? 'alert' : 'ok';
+    const attention = getAttentionInfo(day);
+    const statusText = attention.isAttention ? 'Atenção' : 'Cobertura boa';
+    const statusClass = attention.isAttention ? 'alert' : 'ok';
+    const workingGroups = workingGroupsForDate(selectedDate).map(groupName).join(', ');
+    const reasonText = attention.isAttention ? attention.reasons.join(' • ') : 'Até 2 pessoas de setores diferentes em férias é permitido pela regra.';
 
     els.dayTitle.textContent = formatLongDate(selectedDate);
-    els.daySubtitle.textContent = `Escala calculada para o 3º turno • ${statusText}`;
+    els.daySubtitle.textContent = `3º turno • trabalham: ${workingGroups} • ${statusText}`;
     els.dayStatus.innerHTML = `
       <div class="status-mini"><span>Status</span><strong><span class="pill ${statusClass}">${statusText}</span></strong></div>
       <div class="status-mini"><span>Escalados no dia</span><strong>${expected}</strong></div>
       <div class="status-mini"><span>Presentes</span><strong>${day.present.length}</strong></div>
-      <div class="status-mini"><span>Cobertura</span><strong>${day.coveragePercent}%</strong></div>
+      <div class="status-mini"><span>Regra de atenção</span><strong class="status-reason">${escapeHtml(reasonText)}</strong></div>
     `;
 
     renderPeopleList(els.presentList, day.present, 'Nenhum colaborador presente nesta data.', (item) => ({
       title: item.member.name,
-      subtitle: `${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
+      subtitle: `${sectorName(item.member.sector)} • ${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
       badge: groupBadge(item.member.group)
     }));
 
     renderPeopleList(els.vacationList, day.vacation, 'Nenhum colaborador de férias nesta data.', (item) => ({
       title: item.member.name,
       subtitle: `${formatDateBR(item.vacation.startDate)} a ${formatDateBR(item.vacation.endDate)}${item.vacation.notes ? ` • ${item.vacation.notes}` : ''}`,
-      badge: item.scheduledToWork
-        ? '<span class="pill critical">Impacta escala</span>'
-        : '<span class="pill alert">Cairia em folga</span>'
+      badge: `${sectorBadge(item.member.sector)} ${item.scheduledToWork ? '<span class="pill critical">Impacta escala</span>' : '<span class="pill alert">Cairia em folga</span>'}`
     }));
 
     renderPeopleList(els.offList, day.off, 'Nenhum colaborador em folga 6x2 nesta data.', (item) => ({
       title: item.member.name,
-      subtitle: `${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
+      subtitle: `${sectorName(item.member.sector)} • ${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
       badge: groupBadge(item.member.group)
     }));
   }
@@ -360,41 +593,61 @@
       return;
     }
 
-    container.innerHTML = items
-      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'))
-      .map((item) => {
-        const data = projector(item);
-        return `
-          <article class="person-card">
-            <span class="person-meta">
-              <strong>${escapeHtml(data.title)}</strong>
-              <small>${escapeHtml(data.subtitle)}</small>
-            </span>
-            ${data.badge}
-          </article>
-        `;
-      }).join('');
+    container.innerHTML = SECTORS.map((sector) => {
+      const sectorItems = sortedItemsByMember(items.filter((item) => item.member.sector === sector));
+      return `
+        <section class="sector-block">
+          <div class="sector-title">
+            ${sectorBadge(sector)}
+            <small>${sectorItems.length} colaborador${sectorItems.length === 1 ? '' : 'es'}</small>
+          </div>
+          <div class="sector-list">
+            ${sectorItems.length ? sectorItems.map((item) => {
+              const data = projector(item);
+              return `
+                <article class="person-card">
+                  <span class="person-meta">
+                    <strong>${escapeHtml(data.title)}</strong>
+                    <small>${escapeHtml(data.subtitle)}</small>
+                  </span>
+                  <span class="badges-inline">${data.badge}</span>
+                </article>
+              `;
+            }).join('') : '<div class="empty-msg compact">Nenhum neste setor.</div>'}
+          </div>
+        </section>
+      `;
+    }).join('');
   }
 
   function renderMembersTable() {
-    const rows = state.members
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-      .map((member) => `
+    const editable = canEditData();
+    const rows = SECTORS.map((sector) => {
+      const members = sortedMembers(state.members.filter((member) => member.sector === sector));
+      const memberRows = members.map((member) => `
         <tr>
           <td>${escapeHtml(member.name)}</td>
+          <td>${sectorBadge(member.sector)}</td>
           <td>${groupBadge(member.group)}</td>
           <td>${member.active ? '<span class="pill ok">Ativo</span>' : '<span class="pill inactive">Inativo</span>'}</td>
           <td>
-            <span class="table-actions">
-              <button class="icon-btn edit" type="button" data-edit-member="${member.id}">Editar</button>
-              <button class="icon-btn delete" type="button" data-delete-member="${member.id}">Excluir</button>
-            </span>
+            ${editable ? `
+              <span class="table-actions">
+                <button class="icon-btn edit" type="button" data-edit-member="${member.id}">Editar</button>
+                <button class="icon-btn delete" type="button" data-delete-member="${member.id}">Excluir</button>
+              </span>
+            ` : '<span class="muted-cell">Visualização</span>'}
           </td>
         </tr>
-      `);
+      `).join('') || `<tr><td colspan="5" class="muted-cell">Nenhum membro em ${SECTOR_LABELS[sector]}.</td></tr>`;
 
-    els.membersTable.innerHTML = rows.join('') || '<tr><td colspan="4">Nenhum membro cadastrado.</td></tr>';
+      return `
+        <tr class="sector-row"><td colspan="5">${SECTOR_LABELS[sector]}</td></tr>
+        ${memberRows}
+      `;
+    }).join('');
+
+    els.membersTable.innerHTML = rows || '<tr><td colspan="5">Nenhum membro cadastrado.</td></tr>';
 
     els.membersTable.querySelectorAll('[data-edit-member]').forEach((button) => {
       button.addEventListener('click', () => editMember(button.dataset.editMember));
@@ -406,6 +659,7 @@
 
   function renderVacationsTable() {
     const today = todayISO();
+    const editable = canEditData();
     const filterMember = els.filterMember.value || 'all';
     const filterMonth = els.filterMonth.value || '';
     const filterStatus = els.filterStatus.value || 'all';
@@ -426,22 +680,26 @@
         return `
           <tr>
             <td>${escapeHtml(member ? member.name : 'Colaborador removido')}</td>
+            <td>${member ? sectorBadge(member.sector) : '<span class="pill inactive">Sem setor</span>'}</td>
+            <td>${member ? groupBadge(member.group) : '-'}</td>
             <td>${formatDateBR(vacation.startDate)}</td>
             <td>${formatDateBR(vacation.endDate)}</td>
             <td>${daysBetween(vacation.startDate, vacation.endDate) + 1}</td>
             <td><span class="pill ${status.className}">${status.label}</span></td>
             <td>${escapeHtml(vacation.notes || '-')}</td>
             <td>
-              <span class="table-actions">
-                <button class="icon-btn edit" type="button" data-edit-vacation="${vacation.id}">Editar</button>
-                <button class="icon-btn delete" type="button" data-delete-vacation="${vacation.id}">Excluir</button>
-              </span>
+              ${editable ? `
+                <span class="table-actions">
+                  <button class="icon-btn edit" type="button" data-edit-vacation="${vacation.id}">Editar</button>
+                  <button class="icon-btn delete" type="button" data-delete-vacation="${vacation.id}">Excluir</button>
+                </span>
+              ` : '<span class="muted-cell">Visualização</span>'}
             </td>
           </tr>
         `;
       });
 
-    els.vacationsTable.innerHTML = rows.join('') || '<tr><td colspan="7">Nenhuma férias encontrada para os filtros atuais.</td></tr>';
+    els.vacationsTable.innerHTML = rows.join('') || '<tr><td colspan="9">Nenhuma férias encontrada para os filtros atuais.</td></tr>';
 
     els.vacationsTable.querySelectorAll('[data-edit-vacation]').forEach((button) => {
       button.addEventListener('click', () => editVacation(button.dataset.editVacation));
@@ -451,10 +709,11 @@
     });
   }
 
-  function saveMemberFromForm(event) {
+  async function saveMemberFromForm(event) {
     event.preventDefault();
     const name = els.memberName.value.trim();
     const group = els.memberGroup.value;
+    const sector = els.memberSector.value;
     const active = els.memberActive.checked;
     const id = els.memberId.value;
 
@@ -462,27 +721,50 @@
       showToast('Informe o nome do colaborador.');
       return;
     }
-
-    if (id) {
-      const member = memberById(id);
-      if (!member) return;
-      member.name = name;
-      member.group = group;
-      member.active = active;
-      showToast('Membro atualizado.');
-    } else {
-      state.members.push({ id: newId('m'), name, group, active });
-      showToast('Membro adicionado.');
+    if (!SECTORS.includes(sector)) {
+      showToast('Selecione Fabricação ou Embalagem.');
+      return;
     }
 
-    clearMemberForm();
-    renderAll();
+    const memberPayload = { id: id || newId('m'), name, group, sector, active };
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.upsertMember(memberPayload);
+        showToast(id ? 'Membro atualizado na nuvem.' : 'Membro adicionado na nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+
+        if (id) {
+          const member = memberById(id);
+          if (!member) return;
+          member.name = name;
+          member.group = group;
+          member.sector = sector;
+          member.active = active;
+          showToast('Membro atualizado.');
+        } else {
+          state.members.push(memberPayload);
+          showToast('Membro adicionado.');
+        }
+        renderAll();
+      }
+
+      clearMemberForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível salvar o membro. Confira conexão e permissões.');
+    }
   }
 
   function clearMemberForm() {
     els.memberId.value = '';
     els.memberName.value = '';
     els.memberGroup.value = 'azul';
+    els.memberSector.value = 'fabricacao';
     els.memberActive.checked = true;
   }
 
@@ -492,11 +774,12 @@
     els.memberId.value = member.id;
     els.memberName.value = member.name;
     els.memberGroup.value = member.group;
+    els.memberSector.value = member.sector;
     els.memberActive.checked = member.active;
     els.memberName.focus();
   }
 
-  function deleteMember(id) {
+  async function deleteMember(id) {
     const member = memberById(id);
     if (!member) return;
     const hasVacations = state.vacations.some((vacation) => vacation.memberId === id);
@@ -504,14 +787,29 @@
       ? `Excluir ${member.name}? As férias cadastradas para este colaborador também serão removidas.`
       : `Excluir ${member.name}?`;
     if (!window.confirm(message)) return;
-    state.members = state.members.filter((item) => item.id !== id);
-    state.vacations = state.vacations.filter((vacation) => vacation.memberId !== id);
-    clearMemberForm();
-    showToast('Membro excluído.');
-    renderAll();
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.deleteMember(id);
+        showToast('Membro excluído da nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state.members = state.members.filter((item) => item.id !== id);
+        state.vacations = state.vacations.filter((vacation) => vacation.memberId !== id);
+        showToast('Membro excluído.');
+        renderAll();
+      }
+      clearMemberForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível excluir o membro.');
+    }
   }
 
-  function saveVacationFromForm(event) {
+  async function saveVacationFromForm(event) {
     event.preventDefault();
     const id = els.vacationId.value;
     const memberId = els.vacationMember.value;
@@ -529,27 +827,59 @@
       return;
     }
 
-    const conflicts = findVacationConflicts(memberId, startDate, endDate, id);
-    if (conflicts.length) {
-      const proceed = window.confirm('Existe conflito com outro período do mesmo colaborador. Deseja salvar mesmo assim?');
-      if (!proceed) return;
+    const sameMemberConflicts = findVacationConflicts(memberId, startDate, endDate, id);
+    const otherMemberOverlaps = findVacationOverlapsWithOthers(memberId, startDate, endDate, id);
+
+    if (sameMemberConflicts.length || otherMemberOverlaps.length) {
+      const warnings = [];
+      if (sameMemberConflicts.length) {
+        const text = sameMemberConflicts
+          .map((vacation) => `${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}`)
+          .join(', ');
+        warnings.push(`Conflito com férias já cadastradas para o mesmo colaborador: ${text}.`);
+      }
+      if (otherMemberOverlaps.length) {
+        warnings.push('Sobreposição com férias de outras pessoas:');
+        otherMemberOverlaps.forEach((overlap) => {
+          warnings.push(`- ${overlap.member.name}: ${overlap.days} dia${overlap.days === 1 ? '' : 's'} sobreposto${overlap.days === 1 ? '' : 's'} (${formatDateBR(overlap.overlapStart)} a ${formatDateBR(overlap.overlapEnd)})`);
+        });
+      }
+      warnings.push('Deseja salvar mesmo assim?');
+      if (!window.confirm(warnings.join('\n'))) return;
     }
 
-    if (id) {
-      const vacation = state.vacations.find((item) => item.id === id);
-      if (!vacation) return;
-      vacation.memberId = memberId;
-      vacation.startDate = startDate;
-      vacation.endDate = endDate;
-      vacation.notes = notes;
-      showToast('Férias atualizadas.');
-    } else {
-      state.vacations.push({ id: newId('v'), memberId, startDate, endDate, notes });
-      showToast('Férias cadastradas.');
-    }
+    const vacationPayload = { id: id || newId('v'), memberId, startDate, endDate, notes };
 
-    clearVacationForm();
-    renderAll();
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.upsertVacation(vacationPayload);
+        showToast(id ? 'Férias atualizadas na nuvem.' : 'Férias cadastradas na nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+
+        if (id) {
+          const vacation = state.vacations.find((item) => item.id === id);
+          if (!vacation) return;
+          vacation.memberId = memberId;
+          vacation.startDate = startDate;
+          vacation.endDate = endDate;
+          vacation.notes = notes;
+          showToast('Férias atualizadas.');
+        } else {
+          state.vacations.push(vacationPayload);
+          showToast('Férias cadastradas.');
+        }
+        renderAll();
+      }
+
+      clearVacationForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível salvar as férias. Confira conexão e permissões.');
+    }
   }
 
   function clearVacationForm() {
@@ -559,6 +889,8 @@
     els.vacationNotes.value = '';
     els.vacationWarning.classList.add('hidden');
     els.vacationWarning.textContent = '';
+    els.vacationDayPreview.classList.add('hidden');
+    els.vacationDayPreview.innerHTML = '';
   }
 
   function editVacation(id) {
@@ -569,19 +901,39 @@
     els.vacationStart.value = vacation.startDate;
     els.vacationEnd.value = vacation.endDate;
     els.vacationNotes.value = vacation.notes || '';
-    renderVacationWarning();
+    renderVacationAssistant();
     els.vacationMember.focus();
   }
 
-  function deleteVacation(id) {
+  async function deleteVacation(id) {
     const vacation = state.vacations.find((item) => item.id === id);
     if (!vacation) return;
     const member = memberById(vacation.memberId);
     if (!window.confirm(`Excluir férias de ${member ? member.name : 'colaborador'} entre ${formatDateBR(vacation.startDate)} e ${formatDateBR(vacation.endDate)}?`)) return;
-    state.vacations = state.vacations.filter((item) => item.id !== id);
-    clearVacationForm();
-    showToast('Férias excluídas.');
-    renderAll();
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.deleteVacation(id);
+        showToast('Férias excluídas da nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state.vacations = state.vacations.filter((item) => item.id !== id);
+        showToast('Férias excluídas.');
+        renderAll();
+      }
+      clearVacationForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível excluir as férias.');
+    }
+  }
+
+  function renderVacationAssistant() {
+    renderVacationWarning();
+    renderVacationDayPreview();
   }
 
   function renderVacationWarning() {
@@ -592,51 +944,128 @@
 
     if (!memberId || !startDate || !endDate || startDate > endDate) {
       els.vacationWarning.classList.add('hidden');
-      els.vacationWarning.textContent = '';
+      els.vacationWarning.innerHTML = '';
       return;
     }
 
-    const conflicts = findVacationConflicts(memberId, startDate, endDate, id);
-    if (!conflicts.length) {
+    const sameMemberConflicts = findVacationConflicts(memberId, startDate, endDate, id);
+    const otherMemberOverlaps = findVacationOverlapsWithOthers(memberId, startDate, endDate, id);
+    const blocks = [];
+
+    if (sameMemberConflicts.length) {
+      const items = sameMemberConflicts
+        .map((vacation) => `<li>${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}</li>`)
+        .join('');
+      blocks.push(`<strong>Conflito com o mesmo colaborador:</strong><ul>${items}</ul>`);
+    }
+
+    if (otherMemberOverlaps.length) {
+      const items = otherMemberOverlaps.map((overlap) => `
+        <li>
+          <strong>${escapeHtml(overlap.member.name)}</strong> — ${overlap.days} dia${overlap.days === 1 ? '' : 's'} sobreposto${overlap.days === 1 ? '' : 's'}
+          <small>(${formatDateBR(overlap.overlapStart)} a ${formatDateBR(overlap.overlapEnd)})</small>
+        </li>
+      `).join('');
+      blocks.push(`<strong>Sobreposição com férias de outras pessoas:</strong><ul>${items}</ul>`);
+    }
+
+    if (!blocks.length) {
       els.vacationWarning.classList.add('hidden');
-      els.vacationWarning.textContent = '';
+      els.vacationWarning.innerHTML = '';
       return;
     }
 
-    const text = conflicts.map((vacation) => `${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}`).join(', ');
-    els.vacationWarning.textContent = `Atenção: existe sobreposição com ${text}.`;
+    els.vacationWarning.innerHTML = blocks.join('');
     els.vacationWarning.classList.remove('hidden');
   }
 
-  function saveSettings(event) {
-    event.preventDefault();
-    const baseDate = els.baseDate.value;
-    const minPresent = Number(els.minPresent.value);
+  function renderVacationDayPreview() {
+    const member = memberById(els.vacationMember.value);
+    const startDate = els.vacationStart.value;
+    const endDate = els.vacationEnd.value;
 
-    if (!baseDate || !Number.isFinite(minPresent) || minPresent < 1) {
-      showToast('Confira a data-base e o mínimo de presentes.');
+    if (!member || !startDate || !endDate || startDate > endDate) {
+      els.vacationDayPreview.classList.add('hidden');
+      els.vacationDayPreview.innerHTML = '';
       return;
     }
 
-    state.settings.baseDate = baseDate;
-    state.settings.minPresent = Math.round(minPresent);
+    const totalDays = daysBetween(startDate, endDate) + 1;
+    const limit = Math.min(totalDays, 62);
+    const rows = [];
+    for (let index = 0; index < limit; index += 1) {
+      const dateISO = addDaysISO(startDate, index);
+      const schedule = scheduleForMember(member, dateISO);
+      const working = workingGroupsForDate(dateISO);
+      const off = offGroupsForDate(dateISO);
+      rows.push(`
+        <div class="preview-day">
+          <strong>${formatShortDate(dateISO)}</strong>
+          <span class="preview-colors" title="Trabalham: ${working.map(groupName).join(', ')}. Folga: ${off.map(groupName).join(', ')}">
+            ${GROUPS.map((group) => `<i class="color-dot ${GROUP_CLASS[group]} ${working.includes(group) ? '' : 'off'}" title="${escapeAttr(groupName(group))}"></i>`).join('')}
+          </span>
+          <small>${groupName(member.group)}: ${schedule.works ? 'trabalharia' : 'folga 6x2'}</small>
+        </div>
+      `);
+    }
+
+    els.vacationDayPreview.innerHTML = `
+      <div class="preview-title">
+        <strong>Cores da escala no período</strong>
+        <span>${totalDays} dia${totalDays === 1 ? '' : 's'} corrido${totalDays === 1 ? '' : 's'}</span>
+      </div>
+      <div class="preview-grid">${rows.join('')}</div>
+      ${totalDays > limit ? `<div class="preview-more">Mostrando os primeiros ${limit} dias de ${totalDays}.</div>` : ''}
+    `;
+    els.vacationDayPreview.classList.remove('hidden');
+  }
+
+  async function saveSettings(event) {
+    event.preventDefault();
+    const baseDate = els.baseDate.value;
+
+    if (!baseDate) {
+      showToast('Confira a data-base da escala.');
+      return;
+    }
+
+    const nextSettings = {
+      baseDate,
+      groups: structuredCloneSafe(state.settings.groups)
+    };
 
     GROUPS.forEach((key) => {
       const nameInput = document.querySelector(`[data-group-name="${key}"]`);
       const offsetInput = document.querySelector(`[data-group-offset="${key}"]`);
       const name = nameInput.value.trim() || GROUP_DEFAULTS[key].name;
       const offset = normalizeOffset(Number(offsetInput.value));
-      state.settings.groups[key] = { name, offset };
+      nextSettings.groups[key] = { name, offset };
     });
 
-    showToast('Configurações salvas.');
-    renderAll();
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.setSettings(nextSettings);
+        showToast('Configurações salvas na nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state.settings = nextSettings;
+        showToast('Configurações de escala salvas.');
+        renderAll();
+      }
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível salvar as configurações.');
+    }
   }
 
   function exportBackup() {
     const payload = {
       exportedAt: new Date().toISOString(),
       app: 'Controle de Férias - 3º Turno',
+      appVersion: APP_VERSION,
       data: state
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -655,18 +1084,27 @@
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(String(reader.result));
         const importedState = parsed.data || parsed;
         validateImportedState(importedState);
-        state = importedState;
-        ensureStateShape();
-        saveState();
-        clearMemberForm();
-        clearVacationForm();
-        showToast('Backup importado com sucesso.');
-        renderAll();
+        ensureExternalStateShape(importedState);
+
+        if (isCloudWriteMode()) {
+          const message = 'Importar este backup para a nuvem? Isso substituirá os dados atuais do Firestore para este app.';
+          if (!window.confirm(message)) return;
+          await dataService.replaceAll(importedState);
+          showToast('Backup importado para a nuvem com sucesso.');
+        } else {
+          state = importedState;
+          ensureStateShape();
+          saveState();
+          clearMemberForm();
+          clearVacationForm();
+          showToast('Backup importado com sucesso.');
+          renderAll();
+        }
       } catch (error) {
         console.error(error);
         showToast('Arquivo inválido. Confira se é um backup JSON deste app.');
@@ -677,29 +1115,62 @@
     reader.readAsText(file, 'utf-8');
   }
 
-  function restoreSampleData() {
+  async function restoreSampleData() {
     if (!window.confirm('Restaurar dados de exemplo? Os dados atuais serão substituídos.')) return;
-    state = createSampleState();
-    saveState();
-    clearMemberForm();
-    clearVacationForm();
-    selectedDate = todayISO();
-    currentMonth = selectedDate.slice(0, 7);
-    els.selectedDate.value = selectedDate;
-    els.monthPicker.value = currentMonth;
-    els.filterMonth.value = currentMonth;
-    showToast('Dados de exemplo restaurados.');
-    renderAll();
+    const sample = createSampleState();
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.replaceAll(sample);
+        showToast('Dados de exemplo enviados para a nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state = sample;
+        saveState();
+        showToast('Dados de exemplo restaurados.');
+        renderAll();
+      }
+
+      clearMemberForm();
+      clearVacationForm();
+      selectedDate = todayISO();
+      currentMonth = selectedDate.slice(0, 7);
+      els.selectedDate.value = selectedDate;
+      els.monthPicker.value = currentMonth;
+      els.filterMonth.value = currentMonth;
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível restaurar os dados de exemplo.');
+    }
   }
 
-  function resetAllData() {
+  async function resetAllData() {
     if (!window.confirm('Apagar todos os membros, férias e configurações?')) return;
-    state = createEmptyState();
-    saveState();
-    clearMemberForm();
-    clearVacationForm();
-    showToast('Todos os dados foram apagados.');
-    renderAll();
+    const empty = createEmptyState();
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.clearAll(empty);
+        showToast('Todos os dados foram apagados da nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state = empty;
+        saveState();
+        showToast('Todos os dados foram apagados.');
+        renderAll();
+      }
+      clearMemberForm();
+      clearVacationForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível apagar os dados.');
+    }
   }
 
   function evaluateDay(dateISO) {
@@ -731,7 +1202,11 @@
   }
 
   function scheduleForMember(member, dateISO) {
-    const group = state.settings.groups[member.group] || GROUP_DEFAULTS.azul;
+    return scheduleForGroup(member.group, dateISO);
+  }
+
+  function scheduleForGroup(groupKey, dateISO) {
+    const group = state.settings.groups[groupKey] || GROUP_DEFAULTS.azul;
     const diff = daysBetween(state.settings.baseDate, dateISO);
     const cycleIndex = positiveModulo(diff - Number(group.offset || 0), 8);
     return {
@@ -741,21 +1216,94 @@
     };
   }
 
+  function workingGroupsForDate(dateISO) {
+    return GROUPS.filter((group) => scheduleForGroup(group, dateISO).works);
+  }
+
+  function offGroupsForDate(dateISO) {
+    return GROUPS.filter((group) => !scheduleForGroup(group, dateISO).works);
+  }
+
+  function renderDayColorStrip(dateISO) {
+    const working = workingGroupsForDate(dateISO);
+    return `
+      <span class="calendar-color-strip" aria-label="Cores da escala no dia">
+        ${GROUPS.map((group) => `<i class="color-segment ${GROUP_CLASS[group]} ${working.includes(group) ? '' : 'off'}" title="${escapeAttr(groupName(group))}: ${working.includes(group) ? 'trabalha' : 'folga'}"></i>`).join('')}
+      </span>
+    `;
+  }
+
+  function renderVacationBands(dateISO, monthISO) {
+    const bands = vacationBandsForDate(dateISO, monthISO);
+    if (!bands.length) return '<span class="vacation-bands empty-bands"></span>';
+    const visible = bands.slice(0, 3).map(({ vacation, member, classNames }) => `
+      <span class="vacation-band ${GROUP_CLASS[member.group]} ${classNames}" title="${escapeAttr(member.name)}: ${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}">
+        <span>${escapeHtml(firstName(member.name))}</span>
+      </span>
+    `).join('');
+    const more = bands.length > 3 ? `<span class="vacation-band more">+${bands.length - 3}</span>` : '';
+    return `<span class="vacation-bands">${visible}${more}</span>`;
+  }
+
+  function vacationBandsForDate(dateISO, monthISO) {
+    const firstMonthDay = `${monthISO}-01`;
+    const [, month] = monthISO.split('-').map(Number);
+    const year = Number(monthISO.slice(0, 4));
+    const lastMonthDay = `${monthISO}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+
+    return state.vacations
+      .filter((vacation) => dateISO >= vacation.startDate && dateISO <= vacation.endDate)
+      .map((vacation) => ({ vacation, member: memberById(vacation.memberId) }))
+      .filter(({ member }) => member && member.active)
+      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'))
+      .map(({ vacation, member }) => {
+        const visibleStart = vacation.startDate < firstMonthDay ? firstMonthDay : vacation.startDate;
+        const visibleEnd = vacation.endDate > lastMonthDay ? lastMonthDay : vacation.endDate;
+        const classes = [
+          dateISO === visibleStart ? 'start' : 'middle',
+          dateISO === visibleEnd ? 'end' : 'middle'
+        ].join(' ');
+        return { vacation, member, classNames: classes };
+      });
+  }
+
+  function getAttentionInfo(day) {
+    const reasons = [];
+    if (day.vacation.length >= 3) {
+      reasons.push(`${day.vacation.length} pessoas de férias no mesmo dia`);
+    }
+
+    const bySector = countBySector(day.vacation);
+    Object.entries(bySector).forEach(([sector, count]) => {
+      if (count >= 2) reasons.push(`${count} de ${sectorName(sector)} em férias`);
+    });
+
+    return { isAttention: reasons.length > 0, reasons };
+  }
+
+  function countBySector(items) {
+    return items.reduce((acc, item) => {
+      const sector = item.member?.sector || 'fabricacao';
+      acc[sector] = (acc[sector] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
   function getMonthStats(monthISO) {
     const [, month] = monthISO.split('-').map(Number);
     const year = Number(monthISO.slice(0, 4));
     const lastDay = new Date(year, month, 0).getDate();
-    let criticalDays = 0;
+    let attentionDays = 0;
     let maxVacation = 0;
 
     for (let dayNumber = 1; dayNumber <= lastDay; dayNumber += 1) {
       const dateISO = `${monthISO}-${String(dayNumber).padStart(2, '0')}`;
       const day = evaluateDay(dateISO);
-      if (day.present.length < state.settings.minPresent) criticalDays += 1;
+      if (getAttentionInfo(day).isAttention) attentionDays += 1;
       maxVacation = Math.max(maxVacation, day.vacation.length);
     }
 
-    return { criticalDays, maxVacation };
+    return { attentionDays, maxVacation };
   }
 
   function findVacationConflicts(memberId, startDate, endDate, ignoreId = '') {
@@ -764,6 +1312,28 @@
       vacation.id !== ignoreId &&
       periodsOverlap(startDate, endDate, vacation.startDate, vacation.endDate)
     ));
+  }
+
+  function findVacationOverlapsWithOthers(memberId, startDate, endDate, ignoreId = '') {
+    return state.vacations
+      .filter((vacation) => (
+        vacation.memberId !== memberId &&
+        vacation.id !== ignoreId &&
+        periodsOverlap(startDate, endDate, vacation.startDate, vacation.endDate)
+      ))
+      .map((vacation) => {
+        const member = memberById(vacation.memberId);
+        const overlapStart = maxISODate(startDate, vacation.startDate);
+        const overlapEnd = minISODate(endDate, vacation.endDate);
+        return {
+          vacation,
+          member: member || { id: vacation.memberId, name: 'Colaborador removido', sector: 'fabricacao', group: 'azul' },
+          overlapStart,
+          overlapEnd,
+          days: daysBetween(overlapStart, overlapEnd) + 1
+        };
+      })
+      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'));
   }
 
   function vacationForMemberOnDate(memberId, dateISO) {
@@ -780,8 +1350,38 @@
     return (state.settings.groups[key] && state.settings.groups[key].name) || key;
   }
 
+  function shortGroupName(key) {
+    return groupName(key).slice(0, 3);
+  }
+
   function groupBadge(key) {
     return `<span class="pill ${GROUP_CLASS[key] || ''}">${escapeHtml(groupName(key))}</span>`;
+  }
+
+  function sectorName(key) {
+    return SECTOR_LABELS[key] || 'Fabricação';
+  }
+
+  function sectorBadge(key) {
+    return `<span class="pill ${SECTOR_CLASS[key] || 'fabricacao'}">${escapeHtml(sectorName(key))}</span>`;
+  }
+
+  function sortedMembers(members) {
+    return members.slice().sort((a, b) => {
+      const sectorDiff = SECTORS.indexOf(a.sector) - SECTORS.indexOf(b.sector);
+      if (sectorDiff) return sectorDiff;
+      const groupDiff = GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group);
+      if (groupDiff) return groupDiff;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+  }
+
+  function sortedItemsByMember(items) {
+    return items.slice().sort((a, b) => {
+      const groupDiff = GROUPS.indexOf(a.member.group) - GROUPS.indexOf(b.member.group);
+      if (groupDiff) return groupDiff;
+      return a.member.name.localeCompare(b.member.name, 'pt-BR');
+    });
   }
 
   function changeMonth(delta) {
@@ -795,7 +1395,13 @@
   }
 
   function loadState() {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      for (const legacyKey of LEGACY_STORAGE_KEYS) {
+        raw = localStorage.getItem(legacyKey);
+        if (raw) break;
+      }
+    }
     if (!raw) return createSampleState();
     try {
       const parsed = JSON.parse(raw);
@@ -811,10 +1417,9 @@
 
   function createEmptyState() {
     return {
-      version: 1,
+      version: APP_VERSION,
       settings: {
         baseDate: todayISO(),
-        minPresent: 6,
         groups: structuredCloneSafe(GROUP_DEFAULTS)
       },
       members: [],
@@ -826,29 +1431,29 @@
     const baseDate = todayISO();
     const plus = (days) => addDaysISO(baseDate, days);
     return {
-      version: 1,
+      version: APP_VERSION,
       settings: {
         baseDate,
-        minPresent: 6,
         groups: structuredCloneSafe(GROUP_DEFAULTS)
       },
       members: [
-        { id: 'm-ana', name: 'Ana Souza', group: 'azul', active: true },
-        { id: 'm-bruno', name: 'Bruno Lima', group: 'azul', active: true },
-        { id: 'm-carla', name: 'Carla Mendes', group: 'azul', active: true },
-        { id: 'm-diego', name: 'Diego Alves', group: 'verde', active: true },
-        { id: 'm-elisa', name: 'Elisa Rocha', group: 'verde', active: true },
-        { id: 'm-felipe', name: 'Felipe Santos', group: 'verde', active: true },
-        { id: 'm-gabriela', name: 'Gabriela Nunes', group: 'amarelo', active: true },
-        { id: 'm-henrique', name: 'Henrique Costa', group: 'amarelo', active: true },
-        { id: 'm-iris', name: 'Íris Martins', group: 'amarelo', active: true },
-        { id: 'm-joao', name: 'João Pereira', group: 'vermelho', active: true },
-        { id: 'm-karina', name: 'Karina Melo', group: 'vermelho', active: true },
-        { id: 'm-lucas', name: 'Lucas Ferreira', group: 'vermelho', active: true }
+        { id: 'm-ana', name: 'Ana Souza', group: 'azul', sector: 'fabricacao', active: true },
+        { id: 'm-bruno', name: 'Bruno Lima', group: 'azul', sector: 'fabricacao', active: true },
+        { id: 'm-carla', name: 'Carla Mendes', group: 'amarelo', sector: 'fabricacao', active: true },
+        { id: 'm-diego', name: 'Diego Alves', group: 'amarelo', sector: 'fabricacao', active: true },
+        { id: 'm-elisa', name: 'Elisa Rocha', group: 'vermelho', sector: 'fabricacao', active: true },
+        { id: 'm-felipe', name: 'Felipe Santos', group: 'vermelho', sector: 'fabricacao', active: true },
+        { id: 'm-gabriela', name: 'Gabriela Nunes', group: 'verde', sector: 'embalagem', active: true },
+        { id: 'm-henrique', name: 'Henrique Costa', group: 'verde', sector: 'embalagem', active: true },
+        { id: 'm-iris', name: 'Íris Martins', group: 'azul', sector: 'embalagem', active: true },
+        { id: 'm-joao', name: 'João Pereira', group: 'amarelo', sector: 'embalagem', active: true },
+        { id: 'm-karina', name: 'Karina Melo', group: 'vermelho', sector: 'embalagem', active: true },
+        { id: 'm-lucas', name: 'Lucas Ferreira', group: 'verde', sector: 'embalagem', active: true }
       ],
       vacations: [
         { id: 'v-ana-1', memberId: 'm-ana', startDate: plus(3), endDate: plus(12), notes: 'Férias programadas' },
-        { id: 'v-diego-1', memberId: 'm-diego', startDate: plus(8), endDate: plus(18), notes: '' },
+        { id: 'v-diego-1', memberId: 'm-diego', startDate: plus(8), endDate: plus(18), notes: 'Mesmo setor para testar atenção' },
+        { id: 'v-elisa-1', memberId: 'm-elisa', startDate: plus(9), endDate: plus(15), notes: 'Teste de 2 na fabricação' },
         { id: 'v-iris-1', memberId: 'm-iris', startDate: plus(20), endDate: plus(29), notes: 'Cobertura combinada' },
         { id: 'v-karina-1', memberId: 'm-karina', startDate: plus(-5), endDate: plus(2), notes: 'Em andamento' }
       ]
@@ -857,23 +1462,37 @@
 
   function ensureStateShape() {
     if (!state || typeof state !== 'object') state = createSampleState();
+    const previousVersion = Number(state.version || 1);
     if (!state.settings) state.settings = createEmptyState().settings;
     if (!state.settings.baseDate) state.settings.baseDate = todayISO();
-    if (!state.settings.minPresent) state.settings.minPresent = 6;
     if (!state.settings.groups) state.settings.groups = structuredCloneSafe(GROUP_DEFAULTS);
+
+    const looksLikeOldDefaultOrder = previousVersion < APP_VERSION &&
+      Number(state.settings.groups?.azul?.offset) === 0 &&
+      Number(state.settings.groups?.verde?.offset) === 2 &&
+      Number(state.settings.groups?.amarelo?.offset) === 4 &&
+      Number(state.settings.groups?.vermelho?.offset) === 6;
+
+    if (looksLikeOldDefaultOrder) {
+      state.settings.groups = structuredCloneSafe(GROUP_DEFAULTS);
+    }
+
     GROUPS.forEach((key) => {
       state.settings.groups[key] = {
         name: state.settings.groups[key]?.name || GROUP_DEFAULTS[key].name,
         offset: normalizeOffset(Number(state.settings.groups[key]?.offset ?? GROUP_DEFAULTS[key].offset))
       };
     });
+
+    state.version = APP_VERSION;
     if (!Array.isArray(state.members)) state.members = [];
     if (!Array.isArray(state.vacations)) state.vacations = [];
 
-    state.members = state.members.map((member) => ({
+    state.members = state.members.map((member, index) => ({
       id: member.id || newId('m'),
       name: String(member.name || 'Sem nome'),
       group: GROUPS.includes(member.group) ? member.group : 'azul',
+      sector: SECTORS.includes(member.sector) ? member.sector : inferSector(index),
       active: member.active !== false
     }));
 
@@ -886,6 +1505,18 @@
         endDate: vacation.endDate,
         notes: vacation.notes || ''
       }));
+  }
+
+  function ensureExternalStateShape(externalState) {
+    const previous = state;
+    state = externalState;
+    ensureStateShape();
+    Object.assign(externalState, structuredCloneSafe(state));
+    state = previous;
+  }
+
+  function inferSector(index) {
+    return index % 2 === 0 ? 'fabricacao' : 'embalagem';
   }
 
   function validateImportedState(importedState) {
@@ -906,6 +1537,14 @@
 
   function periodsOverlap(startA, endA, startB, endB) {
     return startA <= endB && startB <= endA;
+  }
+
+  function maxISODate(a, b) {
+    return a > b ? a : b;
+  }
+
+  function minISODate(a, b) {
+    return a < b ? a : b;
   }
 
   function periodIntersectsMonth(startDate, endDate, monthISO) {
@@ -945,6 +1584,10 @@
     return parseISODate(dateISO).toLocaleDateString('pt-BR');
   }
 
+  function formatShortDate(dateISO) {
+    return parseISODate(dateISO).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+
   function formatLongDate(dateISO) {
     return parseISODate(dateISO).toLocaleDateString('pt-BR', {
       weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
@@ -962,6 +1605,10 @@
   function normalizeOffset(value) {
     if (!Number.isFinite(value)) return 0;
     return positiveModulo(Math.round(value), 8);
+  }
+
+  function firstName(name) {
+    return String(name || '').trim().split(/\s+/)[0] || 'Férias';
   }
 
   function newId(prefix) {

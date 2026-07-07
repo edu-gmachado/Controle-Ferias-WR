@@ -1,9 +1,12 @@
-const CACHE_NAME = 'controle-ferias-3turno-v1.0.0';
+const CACHE_NAME = 'controle-ferias-3turno-v4.0.0';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './firebase-config.js',
+  './auth-service.js',
+  './firebase-service.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -30,17 +33,21 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+  const requestUrl = new URL(event.request.url);
 
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match('./index.html'));
-    })
+  // Não cacheia chamadas externas do Firebase/Google/CDNs para evitar dados de banco obsoletos.
+  if (requestUrl.origin !== self.location.origin) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
   );
 });

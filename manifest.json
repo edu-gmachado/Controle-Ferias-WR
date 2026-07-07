@@ -1,7 +1,7 @@
 {
   "name": "Controle de Férias - 3º Turno",
   "short_name": "Férias 3ºT",
-  "description": "Dashboard PWA para controle de férias e presença na escala 6x2 do 3º turno.",
+  "description": "Dashboard PWA com Firebase/Firestore para controle de férias, setores e presença na escala 6x2 do 3º turno.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

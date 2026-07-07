@@ -14,15 +14,43 @@
   <div class="app-shell">
     <header class="hero">
       <div>
-        <span class="eyebrow">PWA offline • escala 6x2 • 4 cores</span>
+        <span class="eyebrow">PWA em tempo real • 3º turno • Firestore • escala 6x2</span>
         <h1>Controle de Férias — 3º Turno</h1>
-        <p>Gerencie férias, acompanhe presença diária e visualize o impacto das ausências na cobertura do time.</p>
+        <p>Gerencie férias, acompanhe presença diária e visualize o impacto das ausências por setor e por cor da escala.</p>
       </div>
       <div class="hero-actions">
         <button id="installAppBtn" class="btn ghost hidden" type="button">Instalar app</button>
         <button id="exportBtnTop" class="btn primary" type="button">Exportar backup</button>
       </div>
     </header>
+
+    <section id="cloudPanel" class="panel cloud-panel" aria-label="Sincronização em nuvem">
+      <div class="cloud-status-row">
+        <div>
+          <span class="eyebrow cloud-eyebrow">Banco de dados</span>
+          <h2>Sincronização em tempo real</h2>
+          <p id="cloudStatusText">Verificando configuração do Firebase...</p>
+        </div>
+        <span id="cloudBadge" class="badge">Verificando</span>
+      </div>
+
+      <form id="loginForm" class="login-form hidden">
+        <div class="field compact">
+          <label for="loginEmail">E-mail</label>
+          <input type="email" id="loginEmail" autocomplete="username" placeholder="usuario@email.com" />
+        </div>
+        <div class="field compact">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Senha" />
+        </div>
+        <button class="btn primary" type="submit">Entrar</button>
+      </form>
+
+      <div id="cloudActions" class="cloud-actions hidden">
+        <button id="logoutBtn" class="btn ghost small" type="button">Sair da nuvem</button>
+        <button id="migrateLocalBtn" class="btn secondary small" type="button">Migrar dados locais para a nuvem</button>
+      </div>
+    </section>
 
     <main>
       <section class="toolbar panel" aria-label="Filtros principais">
@@ -63,9 +91,9 @@
           <small>Sem férias cadastradas na data</small>
         </article>
         <article class="kpi-card danger">
-          <span>Dias críticos no mês</span>
+          <span>Dias em atenção no mês</span>
           <strong id="kpiCritical">0</strong>
-          <small id="kpiMinimum">Abaixo do mínimo</small>
+          <small id="kpiMinimum">3 férias ou 2 no mesmo setor</small>
         </article>
       </section>
 
@@ -74,9 +102,16 @@
           <div class="panel-title-row">
             <div>
               <h2 id="calendarTitle">Calendário</h2>
-              <p>Clique em um dia para ver presentes, férias e folgas.</p>
+              <p>Clique em um dia para ver presentes, férias, folgas e divisão por setor.</p>
             </div>
             <span id="offlineBadge" class="badge">Offline pronto</span>
+          </div>
+          <div class="scale-order">
+            <span>Ordem da escala:</span>
+            <strong class="dot-label blue">Azul</strong>
+            <strong class="dot-label yellow">Amarelo</strong>
+            <strong class="dot-label red">Vermelho</strong>
+            <strong class="dot-label green">Verde</strong>
           </div>
           <div class="calendar-weekdays" aria-hidden="true">
             <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
@@ -84,8 +119,8 @@
           <div id="calendarGrid" class="calendar-grid"></div>
           <div class="legend">
             <span><i class="legend-ok"></i> Cobertura boa</span>
-            <span><i class="legend-alert"></i> Atenção</span>
-            <span><i class="legend-critical"></i> Crítico</span>
+            <span><i class="legend-alert"></i> Atenção: 3 pessoas de férias ou 2 no mesmo setor</span>
+            <span><i class="legend-vacation"></i> Faixa de férias</span>
           </div>
         </div>
 
@@ -120,7 +155,7 @@
           <div class="panel-title-row">
             <div>
               <h2>Membros do time</h2>
-              <p>Adicione, edite, inative ou troque a cor da escala.</p>
+              <p>Adicione, edite, inative, troque setor ou altere a cor da escala.</p>
             </div>
           </div>
 
@@ -131,10 +166,14 @@
               <input type="text" id="memberName" placeholder="Ex.: Ana Souza" required />
             </div>
             <div class="field">
+              <label for="memberSector">Setor</label>
+              <select id="memberSector" required></select>
+            </div>
+            <div class="field">
               <label for="memberGroup">Cor / grupo 6x2</label>
               <select id="memberGroup" required></select>
             </div>
-            <label class="switch-field">
+            <label class="switch-field span-2">
               <input type="checkbox" id="memberActive" checked />
               <span>Ativo no 3º turno</span>
             </label>
@@ -147,7 +186,7 @@
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Nome</th><th>Grupo</th><th>Status</th><th>Ações</th></tr>
+                <tr><th>Nome</th><th>Setor</th><th>Grupo</th><th>Status</th><th>Ações</th></tr>
               </thead>
               <tbody id="membersTable"></tbody>
             </table>
@@ -158,7 +197,7 @@
           <div class="panel-title-row">
             <div>
               <h2>Cadastro de férias</h2>
-              <p>Inclua períodos e acompanhe conflitos automaticamente.</p>
+              <p>Inclua períodos e veja as cores da escala antes de salvar.</p>
             </div>
           </div>
 
@@ -176,6 +215,7 @@
               <label for="vacationEnd">Fim</label>
               <input type="date" id="vacationEnd" required />
             </div>
+            <div id="vacationDayPreview" class="vacation-day-preview hidden span-2"></div>
             <div class="field span-2">
               <label for="vacationNotes">Observação</label>
               <textarea id="vacationNotes" rows="3" placeholder="Ex.: férias coletivas, abono, ajuste manual..."></textarea>
@@ -211,7 +251,7 @@
           <table>
             <thead>
               <tr>
-                <th>Colaborador</th><th>Início</th><th>Fim</th><th>Dias corridos</th><th>Situação</th><th>Observação</th><th>Ações</th>
+                <th>Colaborador</th><th>Setor</th><th>Grupo</th><th>Início</th><th>Fim</th><th>Dias corridos</th><th>Situação</th><th>Observação</th><th>Ações</th>
               </tr>
             </thead>
             <tbody id="vacationsTable"></tbody>
@@ -224,18 +264,15 @@
           <div class="panel-title-row">
             <div>
               <h2>Configurações da escala</h2>
-              <p>A escala é fixa para o 3º turno. Ajuste apenas a data-base, mínimo e defasagem das cores.</p>
+              <p>Ficam ocultas por padrão. Abra apenas quando precisar ajustar data-base, nomes ou defasagem das cores.</p>
             </div>
           </div>
-          <form id="settingsForm" class="settings-form">
+          <button id="toggleSettingsBtn" class="btn secondary" type="button" aria-expanded="false">Mostrar configurações de escala</button>
+          <form id="settingsForm" class="settings-form hidden">
             <div class="field">
               <label for="baseDate">Data-base da escala</label>
               <input type="date" id="baseDate" required />
-              <small>Nesta data, o grupo com defasagem 0 está no 1º dia de trabalho.</small>
-            </div>
-            <div class="field">
-              <label for="minPresent">Mínimo de presentes por dia</label>
-              <input type="number" id="minPresent" min="1" step="1" required />
+              <small>Nesta data, o grupo com defasagem 0 está no 1º dia de trabalho. Ordem padrão: azul, amarelo, vermelho e verde.</small>
             </div>
             <div id="groupSettings" class="group-settings"></div>
             <button class="btn primary" type="submit">Salvar configurações</button>
@@ -257,7 +294,7 @@
             <button id="resetBtn" class="btn danger" type="button">Apagar tudo</button>
           </div>
           <div class="tip-box">
-            <strong>Dica:</strong> depois de publicar no GitHub Pages, os dados ficam salvos no navegador de cada dispositivo. Para levar os dados para outro computador ou celular, exporte e importe o JSON.
+            <strong>Dica:</strong> com Firebase configurado, os dados sincronizam em tempo real entre dispositivos. Sem Firebase, o app continua em modo local e o JSON serve para migração/backup.
           </div>
         </div>
       </section>
@@ -265,6 +302,12 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth-service.js"></script>
+  <script src="firebase-service.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

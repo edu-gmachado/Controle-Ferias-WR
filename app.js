@@ -112,6 +112,7 @@
       filterStatus: $('#filterStatus'),
       clearFiltersBtn: $('#clearFiltersBtn'),
       vacationsTable: $('#vacationsTable'),
+      vacationHistorySummary: $('#vacationHistorySummary'),
       toggleMembersBtn: $('#toggleMembersBtn'),
       membersPanelContent: $('#membersPanelContent'),
       settingsPanel: $('#settingsPanel'),
@@ -165,7 +166,13 @@
       els.vacationEnd.addEventListener(eventName, renderVacationAssistant);
     });
 
-    els.filterMember.addEventListener('change', renderVacationsTable);
+    els.filterMember.addEventListener('change', () => {
+      if (els.filterMember.value !== 'all') {
+        els.filterMonth.value = '';
+        els.filterStatus.value = 'all';
+      }
+      renderVacationsTable();
+    });
     els.filterMonth.addEventListener('change', renderVacationsTable);
     els.filterStatus.addEventListener('change', renderVacationsTable);
     els.clearFiltersBtn.addEventListener('click', () => {
@@ -761,7 +768,9 @@
     const filterMonth = els.filterMonth.value || '';
     const filterStatus = els.filterStatus.value || 'all';
 
-    const rows = state.vacations
+    renderVacationHistorySummary(filterMember, today);
+
+    const filteredVacations = state.vacations
       .slice()
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
       .filter((vacation) => {
@@ -770,8 +779,9 @@
         const status = vacationStatus(vacation, today).key;
         if (filterStatus !== 'all' && status !== filterStatus) return false;
         return true;
-      })
-      .map((vacation) => {
+      });
+
+    const rows = filteredVacations.map((vacation) => {
         const member = memberById(vacation.memberId);
         const status = vacationStatus(vacation, today);
         return `
@@ -804,6 +814,59 @@
     els.vacationsTable.querySelectorAll('[data-delete-vacation]').forEach((button) => {
       button.addEventListener('click', () => deleteVacation(button.dataset.deleteVacation));
     });
+  }
+
+  function renderVacationHistorySummary(memberId, today) {
+    if (!els.vacationHistorySummary) return;
+
+    if (!memberId || memberId === 'all') {
+      els.vacationHistorySummary.classList.add('hidden');
+      els.vacationHistorySummary.innerHTML = '';
+      return;
+    }
+
+    const member = memberById(memberId);
+    const periods = state.vacations
+      .filter((vacation) => vacation.memberId === memberId)
+      .slice()
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    const totalDays = periods.reduce((sum, vacation) => (
+      sum + daysBetween(vacation.startDate, vacation.endDate) + 1
+    ), 0);
+    const statusCounts = periods.reduce((counts, vacation) => {
+      const key = vacationStatus(vacation, today).key;
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, {});
+
+    const nextPeriod = periods.find((vacation) => vacation.endDate >= today);
+    const nextText = nextPeriod
+      ? `${formatDateBR(nextPeriod.startDate)} a ${formatDateBR(nextPeriod.endDate)}`
+      : 'Nenhum período atual ou futuro';
+
+    els.vacationHistorySummary.classList.remove('hidden');
+    els.vacationHistorySummary.innerHTML = `
+      <div class="history-person">
+        <span class="history-avatar">${escapeHtml(personInitials(member ? member.name : '?'))}</span>
+        <div>
+          <small>Histórico completo</small>
+          <strong>${escapeHtml(member ? member.name : 'Colaborador removido')}</strong>
+          <span>${member ? `${escapeHtml(sectorName(member.sector))} • ${escapeHtml(groupName(member.group))}` : 'Sem cadastro ativo'}</span>
+        </div>
+      </div>
+      <div class="history-metrics">
+        <div><small>Períodos cadastrados</small><strong>${periods.length}</strong></div>
+        <div><small>Dias corridos somados</small><strong>${totalDays}</strong></div>
+        <div><small>Em andamento</small><strong>${statusCounts.current || 0}</strong></div>
+        <div><small>Futuros</small><strong>${statusCounts.future || 0}</strong></div>
+        <div><small>Encerrados</small><strong>${statusCounts.past || 0}</strong></div>
+      </div>
+      <div class="history-next">
+        <small>Próximo/atual período</small>
+        <strong>${escapeHtml(nextText)}</strong>
+      </div>
+    `;
   }
 
   async function saveMemberFromForm(event) {

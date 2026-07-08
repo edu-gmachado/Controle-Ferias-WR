@@ -1,4 +1,4 @@
-const CACHE_NAME = 'controle-ferias-3turno-v5.7.0.0';
+const CACHE_NAME = 'controle-ferias-3turno-v5.8.0.0';
 const APP_SHELL = [
   './',
   './index.html',

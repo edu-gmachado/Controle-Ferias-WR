@@ -1315,3 +1315,98 @@ tbody tr:last-child td { border-bottom: 0; }
     padding-left: 49px;
   }
 }
+
+
+/* Histórico de férias por colaborador — v5.8 */
+.filter-field {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+}
+.filter-field > span {
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+.history-member-field { min-width: 245px; }
+.vacation-history-filters { align-items: end; }
+
+.vacation-history-summary {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  border-left: 6px solid #2563eb;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  display: grid;
+  grid-template-columns: minmax(220px, 1.25fr) minmax(360px, 2fr) minmax(190px, 0.9fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.history-person,
+.history-next,
+.history-metrics > div {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #dbeafe;
+  border-radius: 13px;
+}
+.history-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+.history-person > div { display: grid; gap: 2px; }
+.history-person small,
+.history-next small,
+.history-metrics small {
+  color: #64748b;
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+.history-person strong { color: #0f172a; font-size: 1.05rem; }
+.history-person span:not(.history-avatar) { color: #475569; font-size: 0.83rem; }
+.history-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 900;
+}
+.history-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(82px, 1fr));
+  gap: 8px;
+}
+.history-metrics > div {
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  text-align: center;
+}
+.history-metrics strong { color: #0f172a; font-size: 1.25rem; }
+.history-next {
+  padding: 12px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+.history-next strong { color: #1e3a8a; font-size: 0.92rem; }
+
+@media (max-width: 1050px) {
+  .vacation-history-summary { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .history-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-metrics > div:first-child { grid-column: span 2; }
+  .history-member-field { min-width: 100%; }
+}

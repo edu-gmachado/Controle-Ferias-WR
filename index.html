@@ -225,18 +225,28 @@
             <h2>Férias cadastradas</h2>
             <p>Filtre por colaborador, mês e situação.</p>
           </div>
-          <div class="filters">
-            <select id="filterMember"></select>
-            <input type="month" id="filterMonth" />
-            <select id="filterStatus">
-              <option value="all">Todas</option>
-              <option value="current">Em andamento</option>
-              <option value="future">Futuras</option>
-              <option value="past">Encerradas</option>
-            </select>
+          <div class="filters vacation-history-filters">
+            <label class="filter-field history-member-field" for="filterMember">
+              <span>Histórico do colaborador</span>
+              <select id="filterMember"></select>
+            </label>
+            <label class="filter-field" for="filterMonth">
+              <span>Mês</span>
+              <input type="month" id="filterMonth" />
+            </label>
+            <label class="filter-field" for="filterStatus">
+              <span>Situação</span>
+              <select id="filterStatus">
+                <option value="all">Todas</option>
+                <option value="current">Em andamento</option>
+                <option value="future">Futuras</option>
+                <option value="past">Encerradas</option>
+              </select>
+            </label>
             <button id="clearFiltersBtn" class="btn ghost small" type="button">Limpar filtros</button>
           </div>
         </div>
+        <div id="vacationHistorySummary" class="vacation-history-summary hidden"></div>
         <div class="table-wrap">
           <table>
             <thead>

@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.6';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.7';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 56;
+  const APP_VERSION = 57;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -87,6 +87,9 @@
       presentList: $('#presentList'),
       vacationList: $('#vacationList'),
       offList: $('#offList'),
+      presentCount: $('#presentCount'),
+      vacationCount: $('#vacationCount'),
+      offCount: $('#offCount'),
       memberForm: $('#memberForm'),
       memberId: $('#memberId'),
       memberName: $('#memberName'),
@@ -651,11 +654,15 @@
     els.dayTitle.textContent = formatLongDate(selectedDate);
     els.daySubtitle.textContent = `3º turno • trabalham: ${workingGroups} • ${statusText}`;
     els.dayStatus.innerHTML = `
-      <div class="status-mini"><span>Status</span><strong><span class="pill ${statusClass}">${statusText}</span></strong></div>
-      <div class="status-mini"><span>Escalados no dia</span><strong>${expected}</strong></div>
-      <div class="status-mini"><span>Presentes</span><strong>${day.present.length}</strong></div>
-      <div class="status-mini"><span>Regra de atenção</span><strong class="status-reason">${escapeHtml(reasonText)}</strong></div>
+      <div class="status-mini status-overview"><span>Status</span><strong><span class="pill ${statusClass}">${statusText}</span></strong></div>
+      <div class="status-mini status-scheduled"><span>Escalados no dia</span><strong>${expected}</strong></div>
+      <div class="status-mini status-present"><span>Presentes</span><strong>${day.present.length}</strong></div>
+      <div class="status-mini status-attention"><span>Regra de atenção</span><strong class="status-reason">${escapeHtml(reasonText)}</strong></div>
     `;
+
+    if (els.presentCount) els.presentCount.textContent = day.present.length;
+    if (els.vacationCount) els.vacationCount.textContent = day.vacation.length;
+    if (els.offCount) els.offCount.textContent = day.off.length;
 
     renderPeopleList(els.presentList, day.present, 'Nenhum colaborador presente nesta data.', (item) => ({
       title: item.member.name,
@@ -695,6 +702,7 @@
               const data = projector(item);
               return `
                 <article class="person-card">
+                  <span class="person-avatar" aria-hidden="true">${escapeHtml(personInitials(data.title))}</span>
                   <span class="person-meta">
                     <strong>${escapeHtml(data.title)}</strong>
                     <small>${escapeHtml(data.subtitle)}</small>
@@ -1787,6 +1795,16 @@
   function newId(prefix) {
     if (window.crypto && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function personInitials(name) {
+    return String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || '?';
   }
 
   function escapeHtml(value) {

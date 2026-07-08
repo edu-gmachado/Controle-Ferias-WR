@@ -11,7 +11,31 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <section id="loginScreen" class="login-screen" aria-label="Acesso ao sistema">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="login-mark" aria-hidden="true">WR</span>
+        <div>
+          <h1>Controle de férias - WR - 3º turno</h1>
+          <p id="loginStatusText">Entre com seu e-mail e senha para acessar.</p>
+        </div>
+      </div>
+      <form id="loginForm" class="login-form login-form-screen">
+        <div class="field">
+          <label for="loginEmail">E-mail</label>
+          <input type="email" id="loginEmail" autocomplete="username" placeholder="usuario@email.com" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Senha" required />
+        </div>
+        <button class="btn primary login-submit" type="submit">Entrar</button>
+      </form>
+      <button id="loginLogoutBtn" class="btn ghost hidden" type="button">Sair e usar outro login</button>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
     <header class="hero">
       <div>
         <h1>Controle de férias - WR - 3º turno</h1>
@@ -32,17 +56,6 @@
         <span id="cloudBadge" class="badge">Verificando</span>
       </div>
 
-      <form id="loginForm" class="login-form hidden">
-        <div class="field compact">
-          <label for="loginEmail">E-mail</label>
-          <input type="email" id="loginEmail" autocomplete="username" placeholder="usuario@email.com" />
-        </div>
-        <div class="field compact">
-          <label for="loginPassword">Senha</label>
-          <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Senha" />
-        </div>
-        <button class="btn primary" type="submit">Entrar</button>
-      </form>
 
       <div id="cloudActions" class="cloud-actions hidden">
         <button id="logoutBtn" class="btn ghost small" type="button">Sair da nuvem</button>
@@ -97,7 +110,7 @@
 
       <section class="grid-main">
         <div class="panel calendar-panel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2 id="calendarTitle">Calendário</h2>
               <p>Clique em um dia para ver presentes, férias, folgas e divisão por setor.</p>
@@ -123,7 +136,7 @@
         </div>
 
         <aside class="panel day-panel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2 id="dayTitle">Detalhe do dia</h2>
               <p id="daySubtitle">Resumo da equipe no 3º turno.</p>
@@ -150,7 +163,7 @@
 
       <section class="grid-two vacation-grid">
         <div class="panel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2>Cadastro de férias</h2>
               <p>Inclua períodos e veja a cor de folga de cada dia antes de salvar.</p>
@@ -186,7 +199,7 @@
       </section>
 
       <section class="panel">
-        <div class="panel-title-row wrap">
+        <div class="panel-title-row wrap section-heading">
           <div>
             <h2>Férias cadastradas</h2>
             <p>Filtre por colaborador, mês e situação.</p>
@@ -217,7 +230,7 @@
 
       <section class="settings-stack">
         <div class="panel members-panel" id="membersPanel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2>Membros do time</h2>
               <p>Adicione, edite, inative, troque setor ou altere a cor da escala.</p>
@@ -262,7 +275,7 @@
         </div>
 
         <div class="panel" id="settingsPanel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2>Configurações da escala</h2>
               <p>Ficam ocultas por padrão. Abra apenas quando precisar ajustar data-base, nomes ou defasagem das cores.</p>
@@ -281,7 +294,7 @@
         </div>
 
         <div class="panel">
-          <div class="panel-title-row">
+          <div class="panel-title-row section-heading">
             <div>
               <h2>Backup e dados</h2>
               <p>Use JSON para migrar, restaurar ou salvar cópias dos dados.</p>

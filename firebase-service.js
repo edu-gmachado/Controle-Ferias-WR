@@ -198,7 +198,7 @@
       if (!gotSettings || !gotMembers || !gotVacations) return;
 
       const normalizedState = normalizeRemoteState({
-        version: 51,
+        version: 53,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || []
@@ -229,19 +229,37 @@
       }));
 
       const vacations = (remoteState.vacations || []).map((vacation) => ({
-        id: vacation.id,
-        memberId: vacation.memberId || vacation.member || vacation.colaboradorId || '',
-        startDate: vacation.startDate || vacation.inicio || vacation.dataInicio || '',
-        endDate: vacation.endDate || vacation.fim || vacation.dataFim || '',
+        id: String(vacation.id || ''),
+        memberId: String(vacation.memberId || vacation.member || vacation.colaboradorId || ''),
+        startDate: normalizeDateValue(vacation.startDate || vacation.inicio || vacation.dataInicio),
+        endDate: normalizeDateValue(vacation.endDate || vacation.fim || vacation.dataFim),
         notes: vacation.notes || vacation.note || vacation.observacao || ''
-      })).filter((vacation) => vacation.memberId && vacation.startDate && vacation.endDate);
+      })).filter((vacation) => vacation.id && vacation.memberId && vacation.startDate && vacation.endDate && vacation.startDate <= vacation.endDate);
 
       return {
-        version: 51,
+        version: 53,
         settings,
         members,
         vacations
       };
+    }
+
+    function normalizeDateValue(value) {
+      if (!value) return '';
+      let date = null;
+      if (typeof value === 'string') {
+        const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return '';
+        const candidate = `${match[1]}-${match[2]}-${match[3]}`;
+        const [year, month, day] = candidate.split('-').map(Number);
+        date = new Date(year, month - 1, day);
+        return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? candidate : '';
+      }
+      if (typeof value.toDate === 'function') date = value.toDate();
+      else if (value instanceof Date) date = value;
+      else if (typeof value.seconds === 'number') date = new Date(value.seconds * 1000);
+      if (!date || Number.isNaN(date.getTime())) return '';
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     }
 
     function normalizeRemoteSettings(settings) {

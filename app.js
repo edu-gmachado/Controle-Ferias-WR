@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.2';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.3';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 52;
+  const APP_VERSION = 53;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -52,6 +52,10 @@
 
   function cacheElements() {
     Object.assign(els, {
+      loginScreen: $('#loginScreen'),
+      appShell: $('#appShell'),
+      loginStatusText: $('#loginStatusText'),
+      loginLogoutBtn: $('#loginLogoutBtn'),
       cloudPanel: $('#cloudPanel'),
       cloudStatusText: $('#cloudStatusText'),
       cloudBadge: $('#cloudBadge'),
@@ -188,6 +192,7 @@
     els.resetBtn.addEventListener('click', resetAllData);
     els.loginForm.addEventListener('submit', loginToCloud);
     els.logoutBtn.addEventListener('click', logoutFromCloud);
+    els.loginLogoutBtn.addEventListener('click', logoutFromCloud);
     els.migrateLocalBtn.addEventListener('click', migrateLocalDataToCloud);
 
     els.installAppBtn.addEventListener('click', async () => {
@@ -271,24 +276,42 @@
     const authenticated = Boolean(cloudStatus.authenticated);
     const authorized = Boolean(cloudStatus.authorized);
     const role = cloudStatus.role || null;
-    const message = cloudStatus.message || 'Modo local.';
+    const message = cloudStatus.message || 'Aguardando login.';
 
     els.cloudStatusText.textContent = message;
+    els.loginStatusText.textContent = message;
+
+    const showLoginOnly = !authenticated || !authorized;
+    els.loginScreen.classList.toggle('hidden', !showLoginOnly);
+    els.appShell.classList.toggle('hidden', showLoginOnly);
 
     if (!configured) {
-      els.cloudBadge.textContent = 'Local';
+      els.cloudBadge.textContent = 'Configuração necessária';
       els.cloudBadge.className = 'badge alert';
       els.loginForm.classList.add('hidden');
+      els.loginLogoutBtn.classList.add('hidden');
       els.cloudActions.classList.add('hidden');
       els.migrateLocalBtn.disabled = true;
-      setEditLock(false);
+      setEditLock(true);
       return;
     }
 
-    if (configured && !authenticated) {
+    if (!authenticated) {
       els.cloudBadge.textContent = 'Login necessário';
       els.cloudBadge.className = 'badge alert';
       els.loginForm.classList.remove('hidden');
+      els.loginLogoutBtn.classList.add('hidden');
+      els.cloudActions.classList.add('hidden');
+      els.migrateLocalBtn.disabled = true;
+      setEditLock(true);
+      return;
+    }
+
+    if (!authorized) {
+      els.cloudBadge.textContent = 'Sem permissão';
+      els.cloudBadge.className = 'badge alert';
+      els.loginForm.classList.add('hidden');
+      els.loginLogoutBtn.classList.remove('hidden');
       els.cloudActions.classList.add('hidden');
       els.migrateLocalBtn.disabled = true;
       setEditLock(true);
@@ -296,15 +319,8 @@
     }
 
     els.loginForm.classList.add('hidden');
+    els.loginLogoutBtn.classList.add('hidden');
     els.cloudActions.classList.remove('hidden');
-
-    if (!authorized) {
-      els.cloudBadge.textContent = 'Sem permissão';
-      els.cloudBadge.className = 'badge alert';
-      els.migrateLocalBtn.disabled = true;
-      setEditLock(true);
-      return;
-    }
 
     if (role === 'viewer') {
       els.cloudBadge.textContent = 'Visualizador';
@@ -319,7 +335,6 @@
     els.migrateLocalBtn.disabled = false;
     setEditLock(false);
   }
-
 
   function updateAdminOnlyVisibility() {
     if (!els.settingsPanel) return;
@@ -563,10 +578,12 @@
       const selectedClass = dateISO === selectedDate ? 'selected' : '';
       const offGroups = offGroupsForDate(dateISO);
       const colorStrip = renderDayColorStrip(dateISO);
-      const bands = renderVacationBands(dateISO, currentMonth);
+      const vacationBands = vacationBandsForDate(dateISO, currentMonth);
+      const bands = renderVacationBands(dateISO, currentMonth, vacationBands);
+      const dynamicHeight = Math.max(190, 164 + (vacationBands.length * 25));
 
       cells.push(`
-        <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass}" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">
+        <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass} ${vacationBands.length > 1 ? 'multiple-vacations' : ''}" style="--day-min-height:${dynamicHeight}px" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">
           <span class="calendar-day-top">
             <span class="day-number">${dayNumber}</span>
             <span class="attention-tag ${attention.isAttention ? 'alert' : 'ok'}">${attention.isAttention ? 'Atenção' : 'Boa'}</span>
@@ -900,6 +917,8 @@
     try {
       if (isCloudWriteMode()) {
         await dataService.upsertVacation(vacationPayload);
+        upsertVacationInMemory(vacationPayload);
+        renderAll();
         showToast(id ? 'Férias atualizadas na nuvem.' : 'Férias cadastradas na nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -927,6 +946,19 @@
       console.error(error);
       showToast('Não foi possível salvar as férias. Confira conexão e permissões.');
     }
+  }
+
+  function upsertVacationInMemory(vacationPayload) {
+    const normalized = {
+      id: String(vacationPayload.id),
+      memberId: String(vacationPayload.memberId),
+      startDate: normalizeISODateValue(vacationPayload.startDate),
+      endDate: normalizeISODateValue(vacationPayload.endDate),
+      notes: vacationPayload.notes || ''
+    };
+    const index = state.vacations.findIndex((item) => String(item.id) === normalized.id);
+    if (index >= 0) state.vacations[index] = normalized;
+    else state.vacations.push(normalized);
   }
 
   function clearVacationForm() {
@@ -1110,7 +1142,7 @@
   function exportBackup() {
     const payload = {
       exportedAt: new Date().toISOString(),
-      app: 'Controle de Férias - 3º Turno',
+      app: 'Controle de Férias - WR - 3º turno',
       appVersion: APP_VERSION,
       data: state
     };
@@ -1280,16 +1312,18 @@
     `;
   }
 
-  function renderVacationBands(dateISO, monthISO) {
-    const bands = vacationBandsForDate(dateISO, monthISO);
+  function renderVacationBands(dateISO, monthISO, preparedBands = null) {
+    const bands = preparedBands || vacationBandsForDate(dateISO, monthISO);
     if (!bands.length) return '<span class="vacation-bands empty-bands"></span>';
-    const visible = bands.slice(0, 3).map(({ vacation, member, classNames }) => `
+
+    const content = bands.map(({ vacation, member, classNames }) => `
       <span class="vacation-band ${GROUP_CLASS[member.group]} ${classNames}" title="${escapeAttr(member.name)}: ${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}">
-        <span>${escapeHtml(firstName(member.name))}</span>
+        <i class="vacation-group-dot ${GROUP_CLASS[member.group]}" aria-hidden="true"></i>
+        <span>${escapeHtml(member.name)}</span>
       </span>
     `).join('');
-    const more = bands.length > 3 ? `<span class="vacation-band more">+${bands.length - 3}</span>` : '';
-    return `<span class="vacation-bands">${visible}${more}</span>`;
+
+    return `<span class="vacation-bands" aria-label="${bands.length} pessoa${bands.length === 1 ? '' : 's'} de férias">${content}</span>`;
   }
 
   function vacationBandsForDate(dateISO, monthISO) {
@@ -1302,7 +1336,10 @@
       .filter((vacation) => dateISO >= vacation.startDate && dateISO <= vacation.endDate)
       .map((vacation) => ({ vacation, member: memberById(vacation.memberId) }))
       .filter(({ member }) => member && member.active)
-      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'))
+      .sort((a, b) => {
+        const groupDiff = GROUPS.indexOf(a.member.group) - GROUPS.indexOf(b.member.group);
+        return groupDiff || a.member.name.localeCompare(b.member.name, 'pt-BR');
+      })
       .map(({ vacation, member }) => {
         const visibleStart = vacation.startDate < firstMonthDay ? firstMonthDay : vacation.startDate;
         const visibleEnd = vacation.endDate > lastMonthDay ? lastMonthDay : vacation.endDate;
@@ -1354,24 +1391,30 @@
   }
 
   function findVacationConflicts(memberId, startDate, endDate, ignoreId = '') {
+    const normalizedStart = normalizeISODateValue(startDate);
+    const normalizedEnd = normalizeISODateValue(endDate);
+    if (!normalizedStart || !normalizedEnd) return [];
     return state.vacations.filter((vacation) => (
-      vacation.memberId === memberId &&
-      vacation.id !== ignoreId &&
-      periodsOverlap(startDate, endDate, vacation.startDate, vacation.endDate)
+      String(vacation.memberId) === String(memberId) &&
+      String(vacation.id) !== String(ignoreId) &&
+      periodsOverlap(normalizedStart, normalizedEnd, vacation.startDate, vacation.endDate)
     ));
   }
 
   function findVacationOverlapsWithOthers(memberId, startDate, endDate, ignoreId = '') {
+    const normalizedStart = normalizeISODateValue(startDate);
+    const normalizedEnd = normalizeISODateValue(endDate);
+    if (!normalizedStart || !normalizedEnd) return [];
     return state.vacations
       .filter((vacation) => (
-        vacation.memberId !== memberId &&
-        vacation.id !== ignoreId &&
-        periodsOverlap(startDate, endDate, vacation.startDate, vacation.endDate)
+        String(vacation.memberId) !== String(memberId) &&
+        String(vacation.id) !== String(ignoreId) &&
+        periodsOverlap(normalizedStart, normalizedEnd, vacation.startDate, vacation.endDate)
       ))
       .map((vacation) => {
         const member = memberById(vacation.memberId);
-        const overlapStart = maxISODate(startDate, vacation.startDate);
-        const overlapEnd = minISODate(endDate, vacation.endDate);
+        const overlapStart = maxISODate(normalizedStart, vacation.startDate);
+        const overlapEnd = minISODate(normalizedEnd, vacation.endDate);
         return {
           vacation,
           member: member || { id: vacation.memberId, name: 'Colaborador removido', sector: 'fabricacao', group: 'azul' },
@@ -1589,16 +1632,53 @@
     return { key: 'past', label: 'Encerrada', className: 'inactive' };
   }
 
+  function normalizeISODateValue(value) {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!match) return '';
+      const normalized = `${match[1]}-${match[2]}-${match[3]}`;
+      return isValidISODate(normalized) ? normalized : '';
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return formatISODate(value);
+    if (typeof value.toDate === 'function') return formatISODate(value.toDate());
+    if (typeof value.seconds === 'number') return formatISODate(new Date(value.seconds * 1000));
+    return '';
+  }
+
+  function isValidISODate(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = parseISODate(value);
+    return !Number.isNaN(parsed.getTime()) && formatISODate(parsed) === value;
+  }
+
+  function dateOrdinal(value) {
+    const normalized = normalizeISODateValue(value);
+    if (!normalized) return Number.NaN;
+    const [year, month, day] = normalized.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  }
+
   function periodsOverlap(startA, endA, startB, endB) {
-    return startA <= endB && startB <= endA;
+    const aStart = dateOrdinal(startA);
+    const aEnd = dateOrdinal(endA);
+    const bStart = dateOrdinal(startB);
+    const bEnd = dateOrdinal(endB);
+    if ([aStart, aEnd, bStart, bEnd].some(Number.isNaN)) return false;
+    if (aStart > aEnd || bStart > bEnd) return false;
+    return aStart <= bEnd && bStart <= aEnd;
   }
 
   function maxISODate(a, b) {
-    return a > b ? a : b;
+    const normalizedA = normalizeISODateValue(a);
+    const normalizedB = normalizeISODateValue(b);
+    return dateOrdinal(normalizedA) >= dateOrdinal(normalizedB) ? normalizedA : normalizedB;
   }
 
   function minISODate(a, b) {
-    return a < b ? a : b;
+    const normalizedA = normalizeISODateValue(a);
+    const normalizedB = normalizeISODateValue(b);
+    return dateOrdinal(normalizedA) <= dateOrdinal(normalizedB) ? normalizedA : normalizedB;
   }
 
   function periodIntersectsMonth(startDate, endDate, monthISO) {

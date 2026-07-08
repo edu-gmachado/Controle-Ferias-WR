@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.3';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.4';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 53;
+  const APP_VERSION = 54;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -12,9 +12,9 @@
     vermelho: { name: 'Vermelho', offset: 4 },
     verde: { name: 'Verde', offset: 6 }
   };
-  const SECTORS = ['fabricacao', 'embalagem'];
-  const SECTOR_LABELS = { fabricacao: 'Fabricação', embalagem: 'Embalagem' };
-  const SECTOR_CLASS = { fabricacao: 'fabricacao', embalagem: 'embalagem' };
+  const SECTORS = ['fabricacao', 'embalagem', 'tecnico'];
+  const SECTOR_LABELS = { fabricacao: 'Fabricação', embalagem: 'Embalagem', tecnico: 'Técnico' };
+  const SECTOR_CLASS = { fabricacao: 'fabricacao', embalagem: 'embalagem', tecnico: 'tecnico' };
 
   const $ = (selector) => document.querySelector(selector);
 
@@ -786,7 +786,7 @@
       return;
     }
     if (!SECTORS.includes(sector)) {
-      showToast('Selecione Fabricação ou Embalagem.');
+      showToast('Selecione Fabricação, Embalagem ou Técnico.');
       return;
     }
 

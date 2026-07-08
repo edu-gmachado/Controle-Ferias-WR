@@ -533,6 +533,7 @@ tbody tr:last-child td { border-bottom: 0; }
 /* Atualização v2: setores, faixas de férias e escala visual por cor */
 .badge.fabricacao, .pill.fabricacao { color: #075985; background: #e0f2fe; }
 .badge.embalagem, .pill.embalagem { color: #6d28d9; background: #ede9fe; }
+.badge.tecnico, .pill.tecnico { color: #0f766e; background: #ccfbf1; }
 
 .badges-inline {
   display: inline-flex;

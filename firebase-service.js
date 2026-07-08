@@ -198,7 +198,7 @@
       if (!gotSettings || !gotMembers || !gotVacations) return;
 
       const normalizedState = normalizeRemoteState({
-        version: 53,
+        version: 54,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || []
@@ -237,7 +237,7 @@
       })).filter((vacation) => vacation.id && vacation.memberId && vacation.startDate && vacation.endDate && vacation.startDate <= vacation.endDate);
 
       return {
-        version: 53,
+        version: 54,
         settings,
         members,
         vacations

@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.4';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.6';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 54;
+  const APP_VERSION = 56;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -281,11 +281,14 @@
     els.cloudStatusText.textContent = message;
     els.loginStatusText.textContent = message;
 
-    const showLoginOnly = !authenticated || !authorized;
-    els.loginScreen.classList.toggle('hidden', !showLoginOnly);
-    els.appShell.classList.toggle('hidden', showLoginOnly);
+    // A tela de login depende somente da autenticação. Depois que o Firebase
+    // confirma o usuário, o app é aberto imediatamente e a permissão passa a
+    // ser informada dentro do painel da nuvem. Isso evita prender um usuário
+    // válido na tela cheia de login durante a leitura do documento roles/UID.
+    setAuthenticatedLayout(configured && authenticated);
 
     if (!configured) {
+      setAuthenticatedLayout(false);
       els.cloudBadge.textContent = 'Configuração necessária';
       els.cloudBadge.className = 'badge alert';
       els.loginForm.classList.add('hidden');
@@ -297,6 +300,7 @@
     }
 
     if (!authenticated) {
+      setAuthenticatedLayout(false);
       els.cloudBadge.textContent = 'Login necessário';
       els.cloudBadge.className = 'badge alert';
       els.loginForm.classList.remove('hidden');
@@ -308,21 +312,26 @@
     }
 
     if (!authorized) {
-      els.cloudBadge.textContent = 'Sem permissão';
+      setAuthenticatedLayout(true);
+      const isCheckingRole = /verificando permiss/i.test(message);
+      els.cloudBadge.textContent = isCheckingRole ? 'Verificando acesso' : 'Sem permissão';
       els.cloudBadge.className = 'badge alert';
       els.loginForm.classList.add('hidden');
-      els.loginLogoutBtn.classList.remove('hidden');
-      els.cloudActions.classList.add('hidden');
+      els.loginLogoutBtn.classList.add('hidden');
+      els.cloudActions.classList.remove('hidden');
+      els.migrateLocalBtn.classList.add('hidden');
       els.migrateLocalBtn.disabled = true;
       setEditLock(true);
       return;
     }
 
+    setAuthenticatedLayout(true);
     els.loginForm.classList.add('hidden');
     els.loginLogoutBtn.classList.add('hidden');
     els.cloudActions.classList.remove('hidden');
 
     if (role === 'viewer') {
+      els.migrateLocalBtn.classList.add('hidden');
       els.cloudBadge.textContent = 'Visualizador';
       els.cloudBadge.className = 'badge ok';
       els.migrateLocalBtn.disabled = true;
@@ -332,8 +341,23 @@
 
     els.cloudBadge.textContent = mode === 'cloud' ? 'Admin' : 'Local';
     els.cloudBadge.className = 'badge ok';
+    els.migrateLocalBtn.classList.remove('hidden');
     els.migrateLocalBtn.disabled = false;
     setEditLock(false);
+  }
+
+  function setAuthenticatedLayout(isAuthenticated) {
+    const showApp = Boolean(isAuthenticated);
+    els.loginScreen.classList.toggle('hidden', showApp);
+    els.appShell.classList.toggle('hidden', !showApp);
+    els.loginScreen.setAttribute('aria-hidden', String(showApp));
+    els.appShell.setAttribute('aria-hidden', String(!showApp));
+
+    // Evita que controles da tela escondida permaneçam focáveis em leitores
+    // de tela ou em navegação por teclado.
+    if ('inert' in els.loginScreen) els.loginScreen.inert = showApp;
+    if ('inert' in els.appShell) els.appShell.inert = !showApp;
+    document.body.classList.toggle('user-authenticated', showApp);
   }
 
   function updateAdminOnlyVisibility() {
@@ -448,8 +472,9 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(() => {
+      navigator.serviceWorker.register('./service-worker.js?v=5.5.0', { updateViaCache: 'none' })
+        .then((registration) => {
+          registration.update().catch(() => {});
           els.offlineBadge.textContent = 'Offline pronto';
           els.offlineBadge.className = 'badge ok';
         })
@@ -838,7 +863,7 @@
     els.memberId.value = member.id;
     els.memberName.value = member.name;
     els.memberGroup.value = member.group;
-    els.memberSector.value = member.sector;
+    els.memberSector.value = normalizeSector(member.sector);
     els.memberActive.checked = member.active;
     els.memberName.focus();
   }
@@ -1448,6 +1473,20 @@
     return `<span class="pill ${GROUP_CLASS[key] || ''}">${escapeHtml(groupName(key))}</span>`;
   }
 
+  function normalizeSector(value, fallback = 'fabricacao') {
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\s_-]+/g, '');
+
+    if (normalized === 'fabricacao' || normalized === 'fabrica') return 'fabricacao';
+    if (normalized === 'embalagem') return 'embalagem';
+    if (normalized === 'tecnico' || normalized === 'tecnica') return 'tecnico';
+    return SECTORS.includes(fallback) ? fallback : 'fabricacao';
+  }
+
   function sectorName(key) {
     return SECTOR_LABELS[key] || 'Fabricação';
   }
@@ -1589,7 +1628,7 @@
       id: member.id || newId('m'),
       name: String(member.name || 'Sem nome'),
       group: GROUPS.includes(member.group) ? member.group : 'azul',
-      sector: SECTORS.includes(member.sector) ? member.sector : inferSector(index),
+      sector: normalizeSector(member.sector ?? member.setor, inferSector(index)),
       active: member.active !== false
     }));
 

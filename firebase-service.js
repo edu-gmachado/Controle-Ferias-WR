@@ -198,7 +198,7 @@
       if (!gotSettings || !gotMembers || !gotVacations) return;
 
       const normalizedState = normalizeRemoteState({
-        version: 54,
+        version: 56,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || []
@@ -223,7 +223,7 @@
       const members = (remoteState.members || []).map((member) => ({
         id: member.id,
         name: member.name || member.nome || 'Sem nome',
-        sector: member.sector || member.setor || 'fabricacao',
+        sector: normalizeSectorValue(member.sector || member.setor),
         group: member.group || member.cor || member.color || 'azul',
         active: member.active !== false && member.ativo !== false
       }));
@@ -237,11 +237,23 @@
       })).filter((vacation) => vacation.id && vacation.memberId && vacation.startDate && vacation.endDate && vacation.startDate <= vacation.endDate);
 
       return {
-        version: 54,
+        version: 56,
         settings,
         members,
         vacations
       };
+    }
+
+    function normalizeSectorValue(value) {
+      const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\s_-]+/g, '');
+      if (normalized === 'embalagem') return 'embalagem';
+      if (normalized === 'tecnico' || normalized === 'tecnica') return 'tecnico';
+      return 'fabricacao';
     }
 
     function normalizeDateValue(value) {

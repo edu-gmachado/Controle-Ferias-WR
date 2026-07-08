@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=5.6.0" />
 </head>
 <body>
   <section id="loginScreen" class="login-screen" aria-label="Acesso ao sistema">
@@ -247,7 +247,11 @@
             </div>
             <div class="field">
               <label for="memberSector">Setor</label>
-              <select id="memberSector" required></select>
+              <select id="memberSector" required>
+                <option value="fabricacao">Fabricação</option>
+                <option value="embalagem">Embalagem</option>
+                <option value="tecnico">Técnico</option>
+              </select>
             </div>
             <div class="field">
               <label for="memberGroup">Cor / grupo 6x2</label>
@@ -319,9 +323,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="auth-service.js"></script>
-  <script src="firebase-service.js"></script>
-  <script src="app.js"></script>
+  <script src="firebase-config.js?v=5.6.0"></script>
+  <script src="auth-service.js?v=5.6.0"></script>
+  <script src="firebase-service.js?v=5.6.0"></script>
+  <script src="app.js?v=5.6.0"></script>
 </body>
 </html>

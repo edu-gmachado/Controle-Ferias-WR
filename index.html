@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=5.7.0" />
+  <link rel="stylesheet" href="styles.css?v=5.9.0" />
 </head>
 <body>
   <section id="loginScreen" class="login-screen" aria-label="Acesso ao sistema">
@@ -92,6 +92,7 @@
         </article>
       </section>
 
+      <section class="desktop-workspace">
       <section class="toolbar panel calendar-toolbar" aria-label="Filtros do calendário">
         <div class="field compact">
           <label for="selectedDate">Data analisada</label>
@@ -108,7 +109,6 @@
         </div>
       </section>
 
-      <section class="grid-main">
         <div class="panel calendar-panel">
           <div class="panel-title-row section-heading">
             <div>
@@ -180,7 +180,6 @@
             </section>
           </div>
         </aside>
-      </section>
 
       <section class="grid-two vacation-grid">
         <div class="panel">
@@ -219,7 +218,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel vacation-history-panel">
         <div class="panel-title-row wrap section-heading">
           <div>
             <h2>Férias cadastradas</h2>
@@ -347,6 +346,7 @@
           </div>
         </div>
       </section>
+      </section>
     </main>
   </div>
 
@@ -354,9 +354,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=5.6.0"></script>
-  <script src="auth-service.js?v=5.6.0"></script>
-  <script src="firebase-service.js?v=5.6.0"></script>
-  <script src="app.js?v=5.7.0"></script>
+  <script src="firebase-config.js?v=5.9.0"></script>
+  <script src="auth-service.js?v=5.9.0"></script>
+  <script src="firebase-service.js?v=5.9.0"></script>
+  <script src="app.js?v=5.9.0"></script>
 </body>
 </html>

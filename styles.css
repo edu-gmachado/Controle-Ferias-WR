@@ -1410,3 +1410,90 @@ tbody tr:last-child td { border-bottom: 0; }
   .history-metrics > div:first-child { grid-column: span 2; }
   .history-member-field { min-width: 100%; }
 }
+
+
+/* v5.9 — layout desktop fluido para equipes grandes */
+.desktop-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.48fr) minmax(390px, 0.62fr);
+  grid-template-areas:
+    "toolbar day"
+    "calendar day"
+    "vacation day"
+    "history day"
+    "settings day";
+  align-items: start;
+  gap: 18px;
+}
+
+.desktop-workspace > .calendar-toolbar { grid-area: toolbar; }
+.desktop-workspace > .calendar-panel { grid-area: calendar; }
+.desktop-workspace > .day-panel { grid-area: day; }
+.desktop-workspace > .vacation-grid { grid-area: vacation; }
+.desktop-workspace > .vacation-history-panel { grid-area: history; }
+.desktop-workspace > .settings-stack { grid-area: settings; }
+
+/* O painel diário deixa de aumentar a altura de toda a página quando a equipe é grande. */
+.desktop-workspace > .day-panel {
+  position: sticky;
+  top: 14px;
+  align-self: start;
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.desktop-workspace > .day-panel::-webkit-scrollbar { width: 10px; }
+.desktop-workspace > .day-panel::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+.desktop-workspace > .day-panel::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+/* Evita altura mínima excessiva em monitores mais baixos. */
+.desktop-workspace > .calendar-panel {
+  min-height: 0;
+}
+
+/* Mantém os blocos da coluna principal ocupando toda a largura útil. */
+.desktop-workspace > .vacation-grid,
+.desktop-workspace > .settings-stack,
+.desktop-workspace > .vacation-history-panel {
+  min-width: 0;
+}
+
+@media (min-width: 1500px) {
+  .desktop-workspace {
+    grid-template-columns: minmax(0, 1.62fr) minmax(420px, 0.58fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .desktop-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(350px, 0.72fr);
+  }
+}
+
+@media (max-width: 1040px) {
+  .desktop-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "toolbar"
+      "calendar"
+      "day"
+      "vacation"
+      "history"
+      "settings";
+  }
+
+  .desktop-workspace > .day-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}

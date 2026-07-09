@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=6.0.3" />
+  <link rel="stylesheet" href="styles.css?v=6.4" />
 </head>
 <body>
   <section id="loginScreen" class="login-screen hidden" aria-label="Acesso ao sistema">
@@ -93,22 +93,6 @@
       </section>
 
       <section class="desktop-workspace">
-      <section class="toolbar panel calendar-toolbar" aria-label="Filtros do calendário">
-        <div class="field compact">
-          <label for="selectedDate">Data analisada</label>
-          <input type="date" id="selectedDate" />
-        </div>
-        <div class="field compact">
-          <label for="monthPicker">Calendário mensal</label>
-          <input type="month" id="monthPicker" />
-        </div>
-        <div class="toolbar-buttons">
-          <button id="todayBtn" class="btn secondary" type="button">Hoje</button>
-          <button id="prevMonthBtn" class="btn ghost" type="button">← Mês anterior</button>
-          <button id="nextMonthBtn" class="btn ghost" type="button">Próximo mês →</button>
-        </div>
-      </section>
-
         <div class="panel calendar-panel">
           <div class="panel-title-row section-heading">
             <div>
@@ -117,6 +101,22 @@
             </div>
             <span id="offlineBadge" class="badge">Offline pronto</span>
           </div>
+
+          <section class="toolbar calendar-toolbar calendar-toolbar-inside" aria-label="Data e navegação do calendário">
+            <div class="field compact calendar-date-field">
+              <label for="selectedDate">Data analisada</label>
+              <input type="date" id="selectedDate" />
+            </div>
+            <div class="field compact calendar-month-field">
+              <label for="monthPicker">Mês do calendário</label>
+              <input type="month" id="monthPicker" />
+            </div>
+            <div class="toolbar-buttons calendar-navigation" aria-label="Trocar mês do calendário">
+              <button id="prevMonthBtn" class="btn ghost calendar-nav-btn" type="button" aria-label="Mês anterior">← Mês anterior</button>
+              <button id="todayBtn" class="btn secondary calendar-today-btn" type="button">Hoje</button>
+              <button id="nextMonthBtn" class="btn ghost calendar-nav-btn" type="button" aria-label="Próximo mês">Próximo mês →</button>
+            </div>
+          </section>
           <div class="scale-order">
             <span>Ordem da escala:</span>
             <strong class="dot-label blue">Azul</strong>

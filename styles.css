@@ -1612,7 +1612,7 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 
 
-/* v6.0.2 — balão compacto com a cor da escala ao lado do nome */
+/* v6.0.3 — balão compacto com a cor da escala ao lado do nome */
 .attendance-group .person-name-row {
   display: flex;
   align-items: center;
@@ -1673,4 +1673,19 @@ tbody tr:last-child td { border-bottom: 0; }
     padding: 2px 6px;
     font-size: 0.58rem;
   }
+}
+
+/* v6.0.3 — balão da cor alinhado ao extremo direito do cartão */
+.attendance-group .person-card.compact-person-card {
+  display: flex;
+  align-items: center;
+}
+
+.attendance-group .person-card.compact-person-card .person-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.attendance-group .person-card.compact-person-card > .group-color-pill {
+  margin-left: auto;
 }

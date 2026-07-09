@@ -711,9 +711,9 @@
                   <span class="person-meta">
                     <span class="person-name-row">
                       <strong>${escapeHtml(data.title)}</strong>
-                      <span class="group-color-pill ${avatarClass}">${escapeHtml(groupName(data.group))}</span>
                     </span>
                   </span>
+                  <span class="group-color-pill ${avatarClass}">${escapeHtml(groupName(data.group))}</span>
                 </article>
               `;
             }).join('') : '<div class="empty-msg compact">Nenhum neste setor.</div>'}

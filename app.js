@@ -709,7 +709,10 @@
                 <article class="person-card compact-person-card">
                   <span class="person-avatar ${avatarClass}" aria-hidden="true" title="${escapeAttr(groupName(data.group))}">${escapeHtml(personInitials(data.title))}</span>
                   <span class="person-meta">
-                    <strong>${escapeHtml(data.title)}</strong>
+                    <span class="person-name-row">
+                      <strong>${escapeHtml(data.title)}</strong>
+                      <span class="group-color-pill ${avatarClass}">${escapeHtml(groupName(data.group))}</span>
+                    </span>
                   </span>
                 </article>
               `;

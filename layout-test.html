@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="styles.css?v=6.0.2" />
 </head>
 <body>
-  <section id="loginScreen" class="login-screen" aria-label="Acesso ao sistema">
+  <section id="loginScreen" class="login-screen hidden" aria-label="Acesso ao sistema">
     <div class="login-card">
       <div class="login-brand">
         <span class="login-mark" aria-hidden="true">WR</span>
@@ -35,7 +35,7 @@
     </div>
   </section>
 
-  <div id="appShell" class="app-shell hidden">
+  <div id="appShell" class="app-shell">
     <header class="hero">
       <div>
         <h1>Controle de férias - WR - 3º turno</h1>
@@ -350,13 +350,15 @@
     </main>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=6.0.2"></script>
-  <script src="auth-service.js?v=6.0.2"></script>
-  <script src="firebase-service.js?v=6.0.2"></script>
-  <script src="app.js?v=6.0.2"></script>
+  <div id="toast" class="toast"></div>
+  <pre id="layoutMetrics"></pre>
+  <script>
+  window.addEventListener('load', () => {
+    const c=document.querySelector('.calendar-panel').getBoundingClientRect();
+    const d=document.querySelector('.day-panel').getBoundingClientRect();
+    const w=document.querySelector('.desktop-workspace');
+    document.getElementById('layoutMetrics').textContent=JSON.stringify({display:getComputedStyle(w).display, calendar:{x:c.x,y:c.y,w:c.width,h:c.height}, day:{x:d.x,y:d.y,w:d.width,h:d.height}, below:d.top>=c.bottom-1, sameWidth:Math.abs(d.width-c.width)<2},null,2);
+  });
+  </script>
 </body>
 </html>

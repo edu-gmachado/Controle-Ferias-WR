@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.7';
+  const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 57;
+  const APP_VERSION = 510;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -673,20 +673,17 @@
 
     renderPeopleList(els.presentList, day.present, 'Nenhum colaborador presente nesta data.', (item) => ({
       title: item.member.name,
-      subtitle: `${sectorName(item.member.sector)} • ${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
-      badge: groupBadge(item.member.group)
+      group: item.member.group
     }));
 
     renderPeopleList(els.vacationList, day.vacation, 'Nenhum colaborador de férias nesta data.', (item) => ({
       title: item.member.name,
-      subtitle: `${formatDateBR(item.vacation.startDate)} a ${formatDateBR(item.vacation.endDate)}${item.vacation.notes ? ` • ${item.vacation.notes}` : ''}`,
-      badge: `${sectorBadge(item.member.sector)} ${item.scheduledToWork ? '<span class="pill critical">Impacta escala</span>' : '<span class="pill alert">Cairia em folga</span>'}`
+      group: item.member.group
     }));
 
     renderPeopleList(els.offList, day.off, 'Nenhum colaborador em folga 6x2 nesta data.', (item) => ({
       title: item.member.name,
-      subtitle: `${sectorName(item.member.sector)} • ${groupName(item.member.group)} • dia ${item.cycleDay} do ciclo`,
-      badge: groupBadge(item.member.group)
+      group: item.member.group
     }));
   }
 
@@ -707,14 +704,13 @@
           <div class="sector-list">
             ${sectorItems.length ? sectorItems.map((item) => {
               const data = projector(item);
+              const avatarClass = GROUP_CLASS[data.group] || '';
               return `
-                <article class="person-card">
-                  <span class="person-avatar" aria-hidden="true">${escapeHtml(personInitials(data.title))}</span>
+                <article class="person-card compact-person-card">
+                  <span class="person-avatar ${avatarClass}" aria-hidden="true" title="${escapeAttr(groupName(data.group))}">${escapeHtml(personInitials(data.title))}</span>
                   <span class="person-meta">
                     <strong>${escapeHtml(data.title)}</strong>
-                    <small>${escapeHtml(data.subtitle)}</small>
                   </span>
-                  <span class="badges-inline">${data.badge}</span>
                 </article>
               `;
             }).join('') : '<div class="empty-msg compact">Nenhum neste setor.</div>'}

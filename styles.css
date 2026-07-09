@@ -1497,3 +1497,113 @@ tbody tr:last-child td { border-bottom: 0; }
     overflow: visible;
   }
 }
+
+
+/* v5.10 — painel diário compacto e neutro */
+.attendance-present,
+.attendance-vacation,
+.attendance-off {
+  --attendance-strong: #475569;
+  --attendance-soft: #f8fafc;
+  --attendance-border: #d8dee8;
+}
+
+.attendance-vacation {
+  --attendance-strong: #57534e;
+  --attendance-soft: #fafaf9;
+  --attendance-border: #dedbd5;
+}
+
+.attendance-off {
+  --attendance-strong: #3f3f46;
+  --attendance-soft: #fafafa;
+  --attendance-border: #d4d4d8;
+}
+
+.attendance-group-header {
+  background: linear-gradient(135deg, var(--attendance-strong), #334155);
+}
+
+.attendance-group .person-card.compact-person-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 42px;
+  padding: 7px 9px;
+  border-left-width: 1px;
+  border-color: #e2e8f0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.attendance-group .person-card.compact-person-card:hover {
+  transform: none;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.attendance-group .person-card.compact-person-card strong {
+  display: block;
+  color: #1e293b;
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.attendance-group .person-card.compact-person-card .person-meta {
+  min-width: 0;
+  align-self: center;
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar {
+  width: 31px;
+  height: 31px;
+  flex-basis: 31px;
+  border-radius: 9px;
+  font-size: 0.66rem;
+  background: #64748b;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.28);
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar.blue {
+  background: var(--blue);
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar.yellow {
+  color: #422006;
+  background: var(--yellow);
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar.red {
+  background: var(--red);
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar.green {
+  background: var(--green);
+}
+
+.attendance-group > .person-list {
+  padding: 9px;
+}
+
+.attendance-group .sector-block {
+  margin-bottom: 9px;
+}
+
+.attendance-group .sector-list {
+  gap: 5px;
+}
+
+.attendance-group .sector-title {
+  padding-bottom: 5px;
+}
+
+.attendance-group .sector-title small {
+  padding: 3px 6px;
+  color: #475569;
+  background: #eef2f7;
+}
+
+@media (max-width: 520px) {
+  .attendance-group .person-card.compact-person-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}

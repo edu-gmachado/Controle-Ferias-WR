@@ -615,7 +615,7 @@
       const colorStrip = renderDayColorStrip(dateISO);
       const vacationBands = vacationBandsForDate(dateISO, currentMonth);
       const bands = renderVacationBands(dateISO, currentMonth, vacationBands);
-      const dynamicHeight = Math.max(190, 164 + (vacationBands.length * 25));
+      const dynamicHeight = Math.max(172, 149 + (vacationBands.length * 23));
 
       cells.push(`
         <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass} ${vacationBands.length > 1 ? 'multiple-vacations' : ''}" style="--day-min-height:${dynamicHeight}px" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">

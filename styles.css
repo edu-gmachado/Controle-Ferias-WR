@@ -1777,3 +1777,67 @@ tbody tr:last-child td { border-bottom: 0; }
     grid-row: 2;
   }
 }
+
+/* v6.6 — calendário ligeiramente mais compacto, preservando legibilidade */
+@media (min-width: 761px) {
+  .calendar-panel {
+    min-height: 0;
+  }
+
+  .calendar-panel > .calendar-toolbar-inside {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    gap: 11px;
+  }
+
+  .calendar-toolbar-inside .btn {
+    min-height: 40px;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    gap: 6px;
+  }
+
+  .calendar-weekdays {
+    margin-bottom: 6px;
+    font-size: 0.76rem;
+  }
+
+  .calendar-day {
+    min-height: var(--day-min-height, 172px);
+    padding: 7px;
+    gap: 5px;
+    border-radius: 14px;
+  }
+
+  .day-number {
+    width: 27px;
+    height: 27px;
+    font-size: 0.88rem;
+  }
+
+  .attention-tag {
+    padding: 3px 6px;
+    font-size: 0.58rem;
+  }
+
+  .calendar-color-strip.single-off .color-segment {
+    height: 8px;
+  }
+
+  .day-colors-label {
+    font-size: 0.63rem;
+  }
+
+  .vacation-bands {
+    gap: 3px;
+  }
+
+  .vacation-band {
+    min-height: 19px;
+    padding: 2px 6px;
+    font-size: 0.63rem;
+    gap: 5px;
+  }
+}

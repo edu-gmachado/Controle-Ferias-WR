@@ -43,7 +43,7 @@
     currentMonth = selectedDate.slice(0, 7);
     els.selectedDate.value = selectedDate;
     els.monthPicker.value = currentMonth;
-    els.filterMonth.value = currentMonth;
+    els.filterMonth.value = '';
     setupEvents();
     registerServiceWorker();
     renderAll();
@@ -167,10 +167,10 @@
     });
 
     els.filterMember.addEventListener('change', () => {
-      if (els.filterMember.value !== 'all') {
-        els.filterMonth.value = '';
-        els.filterStatus.value = 'all';
-      }
+      // A visão geral sempre volta para férias em andamento/futuras.
+      // Ao selecionar uma pessoa, o histórico completo fica disponível.
+      els.filterMonth.value = '';
+      els.filterStatus.value = 'all';
       renderVacationsTable();
     });
     els.filterMonth.addEventListener('change', renderVacationsTable);
@@ -765,7 +765,17 @@
     const editable = canEditData();
     const filterMember = els.filterMember.value || 'all';
     const filterMonth = els.filterMonth.value || '';
-    const filterStatus = els.filterStatus.value || 'all';
+    let filterStatus = els.filterStatus.value || 'all';
+    const isGeneralView = filterMember === 'all';
+
+    // Na visão geral, períodos encerrados nunca aparecem. Eles ficam
+    // disponíveis somente quando um colaborador específico é selecionado.
+    const pastOption = els.filterStatus.querySelector('option[value="past"]');
+    if (pastOption) pastOption.disabled = isGeneralView;
+    if (isGeneralView && filterStatus === 'past') {
+      els.filterStatus.value = 'all';
+      filterStatus = 'all';
+    }
 
     renderVacationHistorySummary(filterMember, today);
 
@@ -773,7 +783,9 @@
       .slice()
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
       .filter((vacation) => {
-        if (filterMember !== 'all' && vacation.memberId !== filterMember) return false;
+        if (!vacation.startDate || !vacation.endDate) return false;
+        if (!isGeneralView && vacation.memberId !== filterMember) return false;
+        if (isGeneralView && vacation.endDate < today) return false;
         if (filterMonth && !periodIntersectsMonth(vacation.startDate, vacation.endDate, filterMonth)) return false;
         const status = vacationStatus(vacation, today).key;
         if (filterStatus !== 'all' && status !== filterStatus) return false;
@@ -805,7 +817,10 @@
         `;
       });
 
-    els.vacationsTable.innerHTML = rows.join('') || '<tr><td colspan="9">Nenhuma férias encontrada para os filtros atuais.</td></tr>';
+    const emptyMessage = isGeneralView
+      ? 'Nenhuma férias em andamento ou futura cadastrada.'
+      : 'Nenhuma férias encontrada para este colaborador e os filtros atuais.';
+    els.vacationsTable.innerHTML = rows.join('') || `<tr><td colspan="9">${emptyMessage}</td></tr>`;
 
     els.vacationsTable.querySelectorAll('[data-edit-vacation]').forEach((button) => {
       button.addEventListener('click', () => editVacation(button.dataset.editVacation));
@@ -1315,7 +1330,7 @@
       currentMonth = selectedDate.slice(0, 7);
       els.selectedDate.value = selectedDate;
       els.monthPicker.value = currentMonth;
-      els.filterMonth.value = currentMonth;
+      els.filterMonth.value = '';
     } catch (error) {
       console.error(error);
       showToast('Não foi possível restaurar os dados de exemplo.');

@@ -1607,3 +1607,103 @@ tbody tr:last-child td { border-bottom: 0; }
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+
+/* v6.0 TESTE — painel diário abaixo do calendário */
+.desktop-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "toolbar"
+    "calendar"
+    "day"
+    "vacation"
+    "history"
+    "settings";
+  gap: 18px;
+}
+
+.desktop-workspace > .day-panel {
+  position: static;
+  top: auto;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+
+.day-panel-below .day-status {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.day-panel-below .people-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.day-panel-below .attendance-group {
+  min-width: 0;
+}
+
+/* Mantém as listas usáveis em equipes grandes sem alongar demais a página. */
+.day-panel-below .attendance-group > .person-list {
+  max-height: 520px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.day-panel-below .attendance-group > .person-list::-webkit-scrollbar {
+  width: 9px;
+}
+
+.day-panel-below .attendance-group > .person-list::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.day-panel-below .attendance-group > .person-list::-webkit-scrollbar-thumb {
+  background: #a8b2c1;
+  border: 2px solid #eef2f7;
+  border-radius: 999px;
+}
+
+/* O calendário aproveita toda a largura disponível em monitores. */
+.desktop-workspace > .calendar-panel,
+.desktop-workspace > .calendar-toolbar,
+.desktop-workspace > .day-panel,
+.desktop-workspace > .vacation-grid,
+.desktop-workspace > .vacation-history-panel,
+.desktop-workspace > .settings-stack {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1120px) {
+  .day-panel-below .people-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .day-panel-below .attendance-off {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .day-panel-below .day-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .day-panel-below .people-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .day-panel-below .attendance-off {
+    grid-column: auto;
+  }
+
+  .day-panel-below .attendance-group > .person-list {
+    max-height: none;
+    overflow: visible;
+  }
+}

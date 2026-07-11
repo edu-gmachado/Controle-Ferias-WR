@@ -2316,3 +2316,252 @@ tbody tr:last-child td { border-bottom: 0; }
     animation: none;
   }
 }
+
+/* v7.1 — calendário integral e responsivo no Android, sem rolagem lateral */
+.calendar-scroll-shell {
+  container-type: inline-size;
+  overflow-x: hidden !important;
+  scrollbar-gutter: auto;
+  overscroll-behavior-inline: none;
+}
+
+.calendar-scroll-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0 !important;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.attention-label-short,
+.metric-label-short {
+  display: none;
+}
+
+.calendar-panel[data-calendar-density="compact"] .calendar-weekdays,
+.calendar-panel[data-calendar-density="compact"] .calendar-grid {
+  gap: 4px;
+}
+
+.calendar-panel[data-calendar-density="compact"] .calendar-day {
+  padding: 5px;
+  gap: 4px;
+  border-radius: 11px;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .calendar-weekdays,
+.calendar-panel[data-calendar-density="narrow"] .calendar-grid {
+  gap: 2px;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .calendar-day {
+  padding: 3px;
+  gap: 3px;
+  border-radius: 9px;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .day-number {
+  width: 22px;
+  height: 22px;
+  font-size: 0.72rem;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .attention-tag {
+  padding: 2px 3px;
+  font-size: 0.47rem;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .day-colors-label,
+.calendar-panel[data-calendar-density="narrow"] .day-lines {
+  font-size: 0.53rem;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .vacation-band {
+  grid-template-columns: 5px minmax(0, 1fr);
+  min-height: 16px;
+  padding: 2px 3px;
+  gap: 2px;
+  font-size: 0.49rem;
+}
+
+.calendar-panel[data-calendar-density="narrow"] .vacation-group-dot {
+  width: 5px;
+  height: 5px;
+  box-shadow: none;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .calendar-weekdays,
+.calendar-panel[data-calendar-density="tiny"] .calendar-grid,
+.calendar-panel[data-calendar-density="micro"] .calendar-weekdays,
+.calendar-panel[data-calendar-density="micro"] .calendar-grid {
+  gap: 1px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .calendar-day,
+.calendar-panel[data-calendar-density="micro"] .calendar-day {
+  padding: 2px;
+  gap: 2px;
+  border-radius: 7px;
+  border-width: 1px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .calendar-day-top,
+.calendar-panel[data-calendar-density="micro"] .calendar-day-top {
+  gap: 1px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .day-number,
+.calendar-panel[data-calendar-density="micro"] .day-number {
+  width: 19px;
+  height: 19px;
+  font-size: 0.62rem;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .attention-tag,
+.calendar-panel[data-calendar-density="micro"] .attention-tag {
+  padding: 1px 2px;
+  font-size: 0.4rem;
+  line-height: 1.15;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .attention-label-full,
+.calendar-panel[data-calendar-density="micro"] .attention-label-full,
+.calendar-panel[data-calendar-density="tiny"] .metric-label-full,
+.calendar-panel[data-calendar-density="micro"] .metric-label-full {
+  display: none;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .attention-label-short,
+.calendar-panel[data-calendar-density="micro"] .attention-label-short,
+.calendar-panel[data-calendar-density="tiny"] .metric-label-short,
+.calendar-panel[data-calendar-density="micro"] .metric-label-short {
+  display: inline;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .calendar-color-strip.single-off .color-segment,
+.calendar-panel[data-calendar-density="micro"] .calendar-color-strip.single-off .color-segment {
+  height: 5px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .day-colors-label,
+.calendar-panel[data-calendar-density="micro"] .day-colors-label {
+  font-size: 0.43rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .day-lines,
+.calendar-panel[data-calendar-density="micro"] .day-lines {
+  gap: 1px;
+  font-size: 0.45rem;
+  line-height: 1.08;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .day-lines span,
+.calendar-panel[data-calendar-density="micro"] .day-lines span {
+  display: flex !important;
+  gap: 1px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .vacation-bands,
+.calendar-panel[data-calendar-density="micro"] .vacation-bands {
+  gap: 1px;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .vacation-band,
+.calendar-panel[data-calendar-density="micro"] .vacation-band {
+  grid-template-columns: 4px minmax(0, 1fr);
+  min-height: 14px;
+  padding: 1px 2px;
+  gap: 1px;
+  line-height: 1.08;
+  overflow: visible;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .vacation-band > span,
+.calendar-panel[data-calendar-density="micro"] .vacation-band > span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  letter-spacing: -0.025em;
+}
+
+.calendar-panel[data-calendar-density="tiny"] .vacation-name-short,
+.calendar-panel[data-calendar-density="micro"] .vacation-name-short { font-size: 0.43rem; }
+.calendar-panel[data-calendar-density="tiny"] .vacation-name-medium,
+.calendar-panel[data-calendar-density="micro"] .vacation-name-medium { font-size: 0.39rem; }
+.calendar-panel[data-calendar-density="tiny"] .vacation-name-long,
+.calendar-panel[data-calendar-density="micro"] .vacation-name-long { font-size: 0.35rem; }
+.calendar-panel[data-calendar-density="tiny"] .vacation-name-xlong,
+.calendar-panel[data-calendar-density="micro"] .vacation-name-xlong { font-size: 0.31rem; }
+
+.calendar-panel[data-calendar-density="tiny"] .vacation-group-dot,
+.calendar-panel[data-calendar-density="micro"] .vacation-group-dot {
+  width: 4px;
+  height: 4px;
+  box-shadow: none;
+}
+
+.calendar-panel[data-calendar-density="micro"] .calendar-weekdays {
+  font-size: 0.5rem;
+}
+
+.calendar-panel[data-calendar-density="micro"] .day-number {
+  width: 17px;
+  height: 17px;
+  font-size: 0.57rem;
+}
+
+.calendar-panel[data-calendar-density="micro"] .attention-tag {
+  font-size: 0.36rem;
+}
+
+.calendar-panel[data-calendar-density="micro"] .day-colors-label,
+.calendar-panel[data-calendar-density="micro"] .day-lines {
+  font-size: 0.4rem;
+}
+
+@media (max-width: 760px) {
+  .calendar-panel {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  .calendar-scroll-shell {
+    padding-left: 0;
+    padding-right: 0;
+    touch-action: pan-y;
+  }
+
+  .calendar-scroll-hint {
+    display: block;
+    font-size: 0.65rem;
+  }
+
+  .calendar-day {
+    min-width: 0;
+  }
+
+  .day-lines span:nth-child(3) {
+    display: flex;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-shell {
+    width: calc(100% - 8px);
+  }
+
+  .calendar-panel {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

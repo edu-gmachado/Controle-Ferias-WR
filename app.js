@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 700;
+  const APP_VERSION = 710;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -166,6 +166,7 @@
     els.prevMonthBtn.addEventListener('click', () => changeMonth(-1));
     els.nextMonthBtn.addEventListener('click', () => changeMonth(1));
     setupCalendarSwipe();
+    setupCalendarResponsiveFit();
 
     els.memberForm.addEventListener('submit', saveMemberFromForm);
     els.clearMemberForm.addEventListener('click', clearMemberForm);
@@ -722,16 +723,16 @@
         <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass} ${vacationBands.length > 1 ? 'multiple-vacations' : ''}" style="--day-min-height:${dynamicHeight}px" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">
           <span class="calendar-day-top">
             <span class="day-number">${dayNumber}</span>
-            <span class="attention-tag ${attention.isAttention ? 'alert' : 'ok'}">${attention.isAttention ? 'Atenção' : 'Boa'}</span>
+            <span class="attention-tag ${attention.isAttention ? 'alert' : 'ok'}"><span class="attention-label-full">${attention.isAttention ? 'Atenção' : 'Boa'}</span><span class="attention-label-short">${attention.isAttention ? 'Aten.' : 'Boa'}</span></span>
           </span>
           ${colorStrip}
           <span class="day-colors-label" title="Folga: ${offGroups.map(groupName).join(', ')}">
             Folga: ${offGroups.map(shortGroupName).join(' • ')}
           </span>
           <span class="day-lines">
-            <span>Pres. <strong>${day.present.length}</strong></span>
-            <span>Férias <strong>${day.vacation.length}</strong></span>
-            <span>Folgas <strong>${day.off.length}</strong></span>
+            <span><span class="metric-label"><span class="metric-label-full">Pres.</span><span class="metric-label-short">P</span></span><strong>${day.present.length}</strong></span>
+            <span><span class="metric-label"><span class="metric-label-full">Férias</span><span class="metric-label-short">F</span></span><strong>${day.vacation.length}</strong></span>
+            <span><span class="metric-label"><span class="metric-label-full">Folgas</span><span class="metric-label-short">Fg</span></span><strong>${day.off.length}</strong></span>
           </span>
           ${bands}
         </button>
@@ -1529,13 +1530,21 @@
     if (!bands.length) return '<span class="vacation-bands empty-bands"></span>';
 
     const content = bands.map(({ vacation, member, classNames }) => `
-      <span class="vacation-band ${GROUP_CLASS[member.group]} ${classNames}" title="${escapeAttr(member.name)}: ${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}">
+      <span class="vacation-band ${GROUP_CLASS[member.group]} ${classNames} ${vacationNameSizeClass(member.name)}" title="${escapeAttr(member.name)}: ${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}">
         <i class="vacation-group-dot ${GROUP_CLASS[member.group]}" aria-hidden="true"></i>
         <span>${escapeHtml(member.name)}</span>
       </span>
     `).join('');
 
     return `<span class="vacation-bands" aria-label="${bands.length} pessoa${bands.length === 1 ? '' : 's'} de férias">${content}</span>`;
+  }
+
+  function vacationNameSizeClass(name) {
+    const length = String(name || '').trim().length;
+    if (length >= 22) return 'vacation-name-xlong';
+    if (length >= 15) return 'vacation-name-long';
+    if (length >= 10) return 'vacation-name-medium';
+    return 'vacation-name-short';
   }
 
   function vacationBandsForDate(dateISO, monthISO) {
@@ -1700,6 +1709,34 @@
     });
   }
 
+
+  function setupCalendarResponsiveFit() {
+    const shell = els.calendarScrollShell;
+    const panel = els.calendarPanel;
+    if (!shell || !panel) return;
+
+    let lastDensity = '';
+    const updateDensity = () => {
+      const width = shell.clientWidth || window.innerWidth;
+      const density = width <= 330 ? 'micro'
+        : width <= 390 ? 'tiny'
+        : width <= 470 ? 'narrow'
+        : width <= 620 ? 'compact'
+        : 'regular';
+
+      if (density === lastDensity) return;
+      lastDensity = density;
+      panel.dataset.calendarDensity = density;
+    };
+
+    updateDensity();
+    if ('ResizeObserver' in window) {
+      const observer = new ResizeObserver(updateDensity);
+      observer.observe(shell);
+    } else {
+      window.addEventListener('resize', updateDensity, { passive: true });
+    }
+  }
 
   function setupCalendarSwipe() {
     const surface = els.calendarScrollShell;

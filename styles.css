@@ -2565,3 +2565,50 @@ tbody tr:last-child td { border-bottom: 0; }
     padding-right: 6px;
   }
 }
+
+
+/* v7.2 — células mais baixas, sem grandes áreas vazias */
+.calendar-grid {
+  align-items: start;
+  grid-auto-rows: auto;
+}
+
+.calendar-day {
+  align-self: start;
+  min-height: var(--day-min-height, 118px);
+  height: auto;
+}
+
+.calendar-day.empty {
+  min-height: 0;
+  height: 0;
+  padding: 0;
+}
+
+.vacation-bands {
+  margin-top: 2px;
+}
+
+@media (max-width: 620px) {
+  .calendar-day {
+    min-height: var(--day-min-height, 108px);
+  }
+}
+
+@media (max-width: 470px) {
+  .calendar-day {
+    min-height: var(--day-min-height, 98px);
+  }
+}
+
+@media (max-width: 390px) {
+  .calendar-day {
+    min-height: var(--day-min-height, 90px);
+  }
+}
+
+@media (max-width: 330px) {
+  .calendar-day {
+    min-height: var(--day-min-height, 84px);
+  }
+}

@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 710;
+  const APP_VERSION = 720;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -717,7 +717,18 @@
       const colorStrip = renderDayColorStrip(dateISO);
       const vacationBands = vacationBandsForDate(dateISO, currentMonth);
       const bands = renderVacationBands(dateISO, currentMonth, vacationBands);
-      const dynamicHeight = Math.max(172, 149 + (vacationBands.length * 23));
+      const density = els.calendarPanel?.dataset.calendarDensity || 'regular';
+      const heightProfile = {
+        regular: { base: 118, content: 96, band: 22 },
+        compact: { base: 108, content: 88, band: 20 },
+        narrow: { base: 98, content: 81, band: 18 },
+        tiny: { base: 90, content: 74, band: 16 },
+        micro: { base: 84, content: 69, band: 15 }
+      }[density] || { base: 118, content: 96, band: 22 };
+      const dynamicHeight = Math.max(
+        heightProfile.base,
+        heightProfile.content + (vacationBands.length * heightProfile.band)
+      );
 
       cells.push(`
         <button class="calendar-day ${statusClass} ${todayClass} ${selectedClass} ${vacationBands.length > 1 ? 'multiple-vacations' : ''}" style="--day-min-height:${dynamicHeight}px" type="button" data-date="${dateISO}" aria-label="Ver detalhes de ${formatDateBR(dateISO)}">

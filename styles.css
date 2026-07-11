@@ -1091,16 +1091,44 @@ tbody tr:last-child td { border-bottom: 0; }
   .calendar-day { min-height: var(--day-min-height, 160px); }
 }
 
-/* Mantém os nomes completos visíveis, permitindo quebra em células estreitas. */
+/* v6.9 — compatibilidade de faixas de férias entre Chrome, Edge e telas estreitas. */
+.calendar-grid,
+.calendar-weekdays {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-day,
+.vacation-bands,
+.vacation-band,
+.vacation-band > span {
+  min-width: 0;
+}
+
 .vacation-band {
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.15;
+  overflow: hidden;
 }
 
 .vacation-band > span {
-  overflow: visible;
-  text-overflow: clip;
-  overflow-wrap: anywhere;
+  display: block;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 560px) {
+  .vacation-band {
+    padding-inline: 4px;
+    gap: 4px;
+  }
+
+  .vacation-band > span {
+    font-size: 0.58rem;
+  }
 }
 
 /* v5.7 — leitura visual do efetivo diário */
@@ -2006,5 +2034,285 @@ tbody tr:last-child td { border-bottom: 0; }
 
   .audit-history-content {
     padding: 10px;
+  }
+}
+
+
+/* v6.11 — cartões do painel diário sempre legíveis por inteiro */
+.attendance-group .person-card.compact-person-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 44px;
+  height: auto;
+  overflow: visible;
+}
+
+.attendance-group .person-card.compact-person-card .person-meta,
+.attendance-group .person-name-row,
+.attendance-group .person-name-row > strong {
+  min-width: 0;
+  width: 100%;
+}
+
+.attendance-group .person-name-row > strong {
+  display: block;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+  line-height: 1.18;
+}
+
+.attendance-group .person-card.compact-person-card > .group-color-pill {
+  justify-self: end;
+  margin-left: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.attendance-group .person-card.compact-person-card .person-avatar {
+  flex: none;
+  align-self: center;
+}
+
+@media (max-width: 760px) {
+  .attendance-group .person-card.compact-person-card {
+    column-gap: 7px;
+    padding: 7px 8px;
+  }
+
+  .attendance-group .person-card.compact-person-card strong {
+    font-size: clamp(0.72rem, 2.8vw, 0.8rem);
+  }
+
+  .group-color-pill {
+    font-size: clamp(0.52rem, 2.25vw, 0.6rem);
+    padding-inline: 5px;
+  }
+}
+
+@media (max-width: 390px) {
+  .attendance-group .person-card.compact-person-card {
+    grid-template-columns: 27px minmax(0, 1fr) auto;
+    column-gap: 6px;
+    padding: 6px 7px;
+  }
+
+  .attendance-group .person-card.compact-person-card .person-avatar {
+    width: 27px;
+    height: 27px;
+    flex-basis: 27px;
+    border-radius: 8px;
+    font-size: 0.58rem;
+  }
+
+  .attendance-group .person-card.compact-person-card strong {
+    font-size: 0.7rem;
+  }
+
+  .group-color-pill {
+    min-height: 17px;
+    padding: 2px 4px;
+    font-size: 0.5rem;
+  }
+}
+
+@media (max-width: 330px) {
+  .attendance-group .person-card.compact-person-card {
+    grid-template-columns: 25px minmax(0, 1fr) auto;
+    column-gap: 4px;
+    padding-inline: 5px;
+  }
+
+  .attendance-group .person-card.compact-person-card .person-avatar {
+    width: 25px;
+    height: 25px;
+    flex-basis: 25px;
+    font-size: 0.54rem;
+  }
+
+  .attendance-group .person-card.compact-person-card strong {
+    font-size: 0.66rem;
+  }
+
+  .group-color-pill {
+    padding-inline: 3px;
+    font-size: 0.47rem;
+  }
+}
+
+/* v6.11 — conteúdo integral das células do calendário em qualquer tela/navegador */
+.calendar-scroll-shell {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 2px 2px 8px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+.calendar-scroll-content {
+  min-width: 0;
+}
+
+.calendar-scroll-hint {
+  display: none;
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.calendar-day {
+  height: auto;
+  overflow: visible;
+  align-self: stretch;
+}
+
+.calendar-day-top,
+.day-lines span {
+  min-width: 0;
+}
+
+.attention-tag {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.day-colors-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+.day-lines {
+  min-width: 0;
+}
+
+.day-lines span {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.vacation-bands,
+.vacation-band {
+  overflow: visible;
+}
+
+.vacation-band {
+  min-height: 21px;
+  height: auto;
+  white-space: normal;
+  align-items: start;
+}
+
+.vacation-band > span {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+  line-height: 1.18;
+}
+
+@media (max-width: 760px) {
+  .calendar-scroll-content {
+    min-width: 700px;
+  }
+
+  .calendar-scroll-hint {
+    display: block;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    gap: 5px;
+  }
+
+  .calendar-day {
+    min-height: var(--day-min-height, 152px);
+    padding: 6px;
+    gap: 5px;
+  }
+
+  .day-number {
+    width: 25px;
+    height: 25px;
+    font-size: 0.8rem;
+  }
+
+  .attention-tag {
+    padding: 3px 5px;
+    font-size: 0.55rem;
+  }
+
+  .day-colors-label,
+  .day-lines {
+    font-size: 0.61rem;
+  }
+
+  .vacation-band {
+    padding: 3px 5px;
+    gap: 4px;
+    font-size: 0.59rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .calendar-scroll-content {
+    min-width: 665px;
+  }
+}
+
+
+/* v7.0 — navegação mensal por gesto no smartphone */
+.calendar-panel .calendar-scroll-content {
+  transform-origin: center center;
+}
+
+.calendar-panel.calendar-swipe-next .calendar-scroll-content {
+  animation: calendarMonthFromRight 240ms cubic-bezier(.2,.75,.25,1);
+}
+
+.calendar-panel.calendar-swipe-prev .calendar-scroll-content {
+  animation: calendarMonthFromLeft 240ms cubic-bezier(.2,.75,.25,1);
+}
+
+@keyframes calendarMonthFromRight {
+  from { opacity: 0.42; transform: translateX(22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes calendarMonthFromLeft {
+  from { opacity: 0.42; transform: translateX(-22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 760px) {
+  .calendar-scroll-shell {
+    touch-action: pan-x pan-y;
+  }
+
+  .calendar-scroll-hint {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-panel.calendar-swipe-next .calendar-scroll-content,
+  .calendar-panel.calendar-swipe-prev .calendar-scroll-content {
+    animation: none;
   }
 }

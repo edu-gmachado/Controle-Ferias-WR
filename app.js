@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 680;
+  const APP_VERSION = 700;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -30,6 +30,7 @@
   let selectedDate = todayISO();
   let currentMonth = selectedDate.slice(0, 7);
   let deferredInstallPrompt = null;
+  let suppressCalendarClickUntil = 0;
 
   const els = {};
 
@@ -71,6 +72,8 @@
       todayBtn: $('#todayBtn'),
       prevMonthBtn: $('#prevMonthBtn'),
       nextMonthBtn: $('#nextMonthBtn'),
+      calendarPanel: $('.calendar-panel'),
+      calendarScrollShell: $('.calendar-scroll-shell'),
       calendarTitle: $('#calendarTitle'),
       calendarGrid: $('#calendarGrid'),
       offlineBadge: $('#offlineBadge'),
@@ -162,6 +165,7 @@
 
     els.prevMonthBtn.addEventListener('click', () => changeMonth(-1));
     els.nextMonthBtn.addEventListener('click', () => changeMonth(1));
+    setupCalendarSwipe();
 
     els.memberForm.addEventListener('submit', saveMemberFromForm);
     els.clearMemberForm.addEventListener('click', clearMemberForm);
@@ -500,7 +504,7 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js?v=6.8.0', { updateViaCache: 'none' })
+      navigator.serviceWorker.register('./service-worker.js?v=7.0.0', { updateViaCache: 'none' })
         .then((registration) => {
           registration.update().catch(() => {});
           els.offlineBadge.textContent = 'Offline pronto';
@@ -737,6 +741,7 @@
     els.calendarGrid.innerHTML = cells.join('');
     els.calendarGrid.querySelectorAll('[data-date]').forEach((button) => {
       button.addEventListener('click', () => {
+        if (Date.now() < suppressCalendarClickUntil) return;
         selectedDate = button.dataset.date;
         currentMonth = selectedDate.slice(0, 7);
         els.selectedDate.value = selectedDate;
@@ -1693,6 +1698,79 @@
       if (groupDiff) return groupDiff;
       return a.member.name.localeCompare(b.member.name, 'pt-BR');
     });
+  }
+
+
+  function setupCalendarSwipe() {
+    const surface = els.calendarScrollShell;
+    if (!surface) return;
+
+    let gesture = null;
+    const MIN_DISTANCE = 82;
+    const MAX_DURATION = 650;
+    const HORIZONTAL_RATIO = 1.35;
+
+    surface.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1) {
+        gesture = null;
+        return;
+      }
+
+      const touch = event.touches[0];
+      gesture = {
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startedAt: Date.now()
+      };
+    }, { passive: true });
+
+    surface.addEventListener('touchend', (event) => {
+      if (!gesture || event.changedTouches.length !== 1) {
+        gesture = null;
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - gesture.startX;
+      const deltaY = touch.clientY - gesture.startY;
+      const duration = Date.now() - gesture.startedAt;
+      gesture = null;
+
+      const horizontal = Math.abs(deltaX) >= MIN_DISTANCE
+        && Math.abs(deltaX) > Math.abs(deltaY) * HORIZONTAL_RATIO;
+      const quickEnough = duration <= MAX_DURATION;
+
+      if (!horizontal || !quickEnough) return;
+
+      suppressCalendarClickUntil = Date.now() + 550;
+      const monthDelta = deltaX < 0 ? 1 : -1;
+      animateCalendarSwipe(monthDelta);
+    }, { passive: true });
+
+    surface.addEventListener('touchcancel', () => {
+      gesture = null;
+    }, { passive: true });
+  }
+
+  function animateCalendarSwipe(delta) {
+    const panel = els.calendarPanel;
+    const animationClass = delta > 0 ? 'calendar-swipe-next' : 'calendar-swipe-prev';
+
+    if (panel) {
+      panel.classList.remove('calendar-swipe-next', 'calendar-swipe-prev');
+      void panel.offsetWidth;
+      panel.classList.add(animationClass);
+    }
+
+    changeMonth(delta);
+
+    if (els.calendarScrollShell) {
+      els.calendarScrollShell.scrollLeft = 0;
+    }
+
+    window.setTimeout(() => {
+      panel?.classList.remove('calendar-swipe-next', 'calendar-swipe-prev');
+    }, 280);
   }
 
   function changeMonth(delta) {

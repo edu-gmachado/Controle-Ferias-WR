@@ -1841,3 +1841,53 @@ tbody tr:last-child td { border-bottom: 0; }
     gap: 5px;
   }
 }
+
+
+/* v6.7 — opção de persistência do login */
+.keep-connected-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.75);
+  cursor: pointer;
+  user-select: none;
+}
+
+.keep-connected-option input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+  accent-color: #1f2937;
+}
+
+.keep-connected-option span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.keep-connected-option strong {
+  color: #1f2937;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.keep-connected-option small {
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.keep-connected-option:has(input:focus-visible) {
+  outline: 3px solid rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+}
+
+.keep-connected-option:has(input:checked) {
+  border-color: rgba(31, 41, 55, 0.52);
+  background: rgba(241, 245, 249, 0.96);
+}

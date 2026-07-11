@@ -60,7 +60,8 @@
         auth = window.firebase.auth(app);
         db = window.firebase.firestore(app);
 
-        configureSessionPersistence();
+        // A persistência do login é escolhida no envio do formulário.
+        // Não altere aqui: isso preserva corretamente a opção “Continuar conectado”.
         enableOptionalPersistence();
 
         auth.onAuthStateChanged((user) => {
@@ -107,16 +108,6 @@
           uid: '',
           message: 'Não foi possível iniciar o Firebase. Confira firebase-config.js.'
         });
-      }
-    }
-
-    function configureSessionPersistence() {
-      try {
-        auth.setPersistence(window.firebase.auth.Auth.Persistence.SESSION).catch((error) => {
-          console.info('Persistência de sessão do Auth não alterada:', error?.code || error?.message || error);
-        });
-      } catch (error) {
-        console.info('Persistência de sessão do Auth indisponível:', error?.message || error);
       }
     }
 
@@ -184,13 +175,20 @@
       });
     }
 
-    async function login(email, password) {
+    async function login(email, password, keepConnected = false) {
       if (!configured || !auth) throw new Error('Firebase não configurado.');
+
+      const persistence = keepConnected
+        ? window.firebase.auth.Auth.Persistence.LOCAL
+        : window.firebase.auth.Auth.Persistence.SESSION;
+
       try {
-        await auth.setPersistence(window.firebase.auth.Auth.Persistence.SESSION);
+        await auth.setPersistence(persistence);
       } catch (error) {
-        console.info('Persistência de sessão do Auth não alterada antes do login:', error?.code || error?.message || error);
+        console.error('Não foi possível definir a persistência do login:', error);
+        throw new Error('Não foi possível configurar a permanência do login neste navegador.');
       }
+
       await auth.signInWithEmailAndPassword(email, password);
     }
 

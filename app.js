@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 510;
+  const APP_VERSION = 670;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -62,6 +62,7 @@
       loginForm: $('#loginForm'),
       loginEmail: $('#loginEmail'),
       loginPassword: $('#loginPassword'),
+      keepConnected: $('#keepConnected'),
       cloudActions: $('#cloudActions'),
       logoutBtn: $('#logoutBtn'),
       migrateLocalBtn: $('#migrateLocalBtn'),
@@ -421,14 +422,17 @@
     if (!authService) return;
     const email = els.loginEmail.value.trim();
     const password = els.loginPassword.value;
+    const keepConnected = Boolean(els.keepConnected && els.keepConnected.checked);
     if (!email || !password) {
       showToast('Informe e-mail e senha.');
       return;
     }
     try {
-      await authService.login(email, password);
+      await authService.login(email, password, keepConnected);
       els.loginPassword.value = '';
-      showToast('Login realizado. Sincronização em tempo real ativada.');
+      showToast(keepConnected
+        ? 'Login realizado. Este dispositivo permanecerá conectado.'
+        : 'Login realizado. A sessão termina ao fechar o navegador.');
     } catch (error) {
       console.error(error);
       showToast('Não foi possível entrar. Confira e-mail, senha e Firebase.');

@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 670;
+  const APP_VERSION = 680;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -121,6 +121,12 @@
       settingsForm: $('#settingsForm'),
       baseDate: $('#baseDate'),
       groupSettings: $('#groupSettings'),
+      toggleAuditBtn: $('#toggleAuditBtn'),
+      auditHistoryContent: $('#auditHistoryContent'),
+      auditSummary: $('#auditSummary'),
+      auditUserFilter: $('#auditUserFilter'),
+      auditActionFilter: $('#auditActionFilter'),
+      auditTable: $('#auditTable'),
       exportBtn: $('#exportBtn'),
       exportBtnTop: $('#exportBtnTop'),
       importFile: $('#importFile'),
@@ -194,6 +200,14 @@
       els.toggleSettingsBtn.textContent = hidden ? 'Mostrar configurações de escala' : 'Ocultar configurações de escala';
       els.toggleSettingsBtn.setAttribute('aria-expanded', String(!hidden));
     });
+
+    els.toggleAuditBtn.addEventListener('click', () => {
+      const hidden = els.auditHistoryContent.classList.toggle('hidden');
+      els.toggleAuditBtn.textContent = hidden ? 'Ver histórico de alterações' : 'Ocultar histórico de alterações';
+      els.toggleAuditBtn.setAttribute('aria-expanded', String(!hidden));
+    });
+    els.auditUserFilter.addEventListener('change', renderAuditHistory);
+    els.auditActionFilter.addEventListener('change', renderAuditHistory);
 
     els.settingsForm.addEventListener('submit', saveSettings);
     els.exportBtn.addEventListener('click', exportBackup);
@@ -474,7 +488,7 @@
         return;
       }
       ensureExternalStateShape(localState);
-      await dataService.replaceAll(localState);
+      await dataService.replaceAll(localState, { action: 'migration', description: 'Migrou dados locais antigos para a nuvem.' });
       clearLocalStorageData();
       initialLocalState = null;
       showToast('Dados locais enviados para a nuvem e removidos deste navegador.');
@@ -486,7 +500,7 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js?v=5.5.0', { updateViaCache: 'none' })
+      navigator.serviceWorker.register('./service-worker.js?v=6.8.0', { updateViaCache: 'none' })
         .then((registration) => {
           registration.update().catch(() => {});
           els.offlineBadge.textContent = 'Offline pronto';
@@ -507,6 +521,7 @@
     renderCloudPanel();
     renderSelectors();
     renderSettingsForm();
+    renderAuditHistory();
     renderKpis();
     renderCalendar();
     renderDayDetails();
@@ -574,6 +589,84 @@
         </div>
       `;
     }).join('');
+  }
+
+
+  function renderAuditHistory() {
+    if (!els.auditSummary || !els.auditTable) return;
+
+    const logs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
+    const currentUser = els.auditUserFilter.value || 'all';
+    const currentAction = els.auditActionFilter.value || 'all';
+
+    const users = [...new Set(logs.map((log) => log.userEmail).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    els.auditUserFilter.innerHTML = '<option value="all">Todos os administradores</option>' +
+      users.map((email) => `<option value="${escapeAttr(email)}">${escapeHtml(email)}</option>`).join('');
+    if (currentUser === 'all' || users.includes(currentUser)) els.auditUserFilter.value = currentUser;
+
+    const actions = [...new Set(logs.map((log) => log.action).filter(Boolean))];
+    els.auditActionFilter.innerHTML = '<option value="all">Todas as ações</option>' +
+      actions.map((action) => `<option value="${escapeAttr(action)}">${escapeHtml(auditActionLabel(action))}</option>`).join('');
+    if (currentAction === 'all' || actions.includes(currentAction)) els.auditActionFilter.value = currentAction;
+
+    const latest = logs[0];
+    if (latest) {
+      els.auditSummary.innerHTML = `
+        <span>Última alteração</span>
+        <strong>${escapeHtml(latest.userEmail)}</strong>
+        <small>${escapeHtml(formatAuditDate(latest.timestamp))} • ${escapeHtml(auditActionLabel(latest.action))}</small>
+      `;
+    } else {
+      els.auditSummary.innerHTML = `
+        <span>Última alteração</span>
+        <strong>Nenhum registro disponível</strong>
+        <small>O histórico começa após publicar a v6.8 e as novas regras do Firestore.</small>
+      `;
+    }
+
+    const filtered = logs.filter((log) => {
+      if (els.auditUserFilter.value !== 'all' && log.userEmail !== els.auditUserFilter.value) return false;
+      if (els.auditActionFilter.value !== 'all' && log.action !== els.auditActionFilter.value) return false;
+      return true;
+    });
+
+    els.auditTable.innerHTML = filtered.length ? filtered.map((log) => `
+      <tr>
+        <td><time datetime="${escapeAttr(log.timestamp)}">${escapeHtml(formatAuditDate(log.timestamp))}</time></td>
+        <td><strong>${escapeHtml(log.userEmail)}</strong></td>
+        <td><span class="audit-action-pill">${escapeHtml(auditActionLabel(log.action))}</span></td>
+        <td>${escapeHtml(log.description)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" class="muted-cell">Nenhuma alteração encontrada para os filtros escolhidos.</td></tr>';
+  }
+
+  function auditActionLabel(action) {
+    const labels = {
+      create_member: 'Membro adicionado',
+      update_member: 'Membro alterado',
+      delete_member: 'Membro excluído',
+      create_vacation: 'Férias cadastradas',
+      update_vacation: 'Férias alteradas',
+      delete_vacation: 'Férias excluídas',
+      update_settings: 'Escala alterada',
+      migration: 'Migração local',
+      import_backup: 'Backup importado',
+      restore_sample: 'Exemplo restaurado',
+      reset_all: 'Dados apagados',
+      replace_all: 'Dados substituídos'
+    };
+    return labels[action] || 'Alteração';
+  }
+
+  function formatAuditDate(value) {
+    if (!value) return 'Data pendente';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Data pendente';
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
   }
 
   function renderKpis() {
@@ -908,7 +1001,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.upsertMember(memberPayload);
+        await dataService.upsertMember(memberPayload, { action: id ? 'update' : 'create' });
         showToast(id ? 'Membro atualizado na nuvem.' : 'Membro adicionado na nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -968,7 +1061,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.deleteMember(id);
+        await dataService.deleteMember(id, { memberName: member.name });
         showToast('Membro excluído da nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -1030,7 +1123,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.upsertVacation(vacationPayload);
+        await dataService.upsertVacation(vacationPayload, { action: id ? 'update' : 'create', memberName: memberById(memberId)?.name || 'colaborador' });
         upsertVacationInMemory(vacationPayload);
         renderAll();
         showToast(id ? 'Férias atualizadas na nuvem.' : 'Férias cadastradas na nuvem.');
@@ -1106,7 +1199,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.deleteVacation(id);
+        await dataService.deleteVacation(id, { memberName: member?.name || 'colaborador', startDate: vacation.startDate, endDate: vacation.endDate });
         showToast('Férias excluídas da nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -1286,7 +1379,7 @@
         if (isCloudWriteMode()) {
           const message = 'Importar este backup para a nuvem? Isso substituirá os dados atuais do Firestore para este app.';
           if (!window.confirm(message)) return;
-          await dataService.replaceAll(importedState);
+          await dataService.replaceAll(importedState, { action: 'import_backup', description: 'Importou um backup JSON e substituiu os dados da nuvem.' });
           showToast('Backup importado para a nuvem com sucesso.');
         } else {
           if (shouldBlockWrite()) {
@@ -1316,7 +1409,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.replaceAll(sample);
+        await dataService.replaceAll(sample, { action: 'restore_sample', description: 'Restaurou os dados de exemplo do aplicativo.' });
         showToast('Dados de exemplo enviados para a nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -1347,7 +1440,7 @@
 
     try {
       if (isCloudWriteMode()) {
-        await dataService.clearAll(empty);
+        await dataService.clearAll(empty, { action: 'reset_all', description: 'Apagou todos os membros e férias da nuvem.' });
         showToast('Todos os dados foram apagados da nuvem.');
       } else {
         if (shouldBlockWrite()) {
@@ -1648,7 +1741,8 @@
         groups: structuredCloneSafe(GROUP_DEFAULTS)
       },
       members: [],
-      vacations: []
+      vacations: [],
+      auditLogs: []
     };
   }
 
@@ -1712,6 +1806,7 @@
     state.version = APP_VERSION;
     if (!Array.isArray(state.members)) state.members = [];
     if (!Array.isArray(state.vacations)) state.vacations = [];
+    if (!Array.isArray(state.auditLogs)) state.auditLogs = [];
 
     state.members = state.members.map((member, index) => ({
       id: member.id || newId('m'),
@@ -1730,6 +1825,19 @@
         endDate: vacation.endDate,
         notes: vacation.notes || ''
       }));
+
+    state.auditLogs = state.auditLogs.map((log) => ({
+      id: String(log.id || ''),
+      action: String(log.action || 'unknown'),
+      entityType: String(log.entityType || ''),
+      entityId: String(log.entityId || ''),
+      description: String(log.description || 'Alteração registrada.'),
+      userUid: String(log.userUid || ''),
+      userEmail: String(log.userEmail || 'Usuário não identificado'),
+      userRole: String(log.userRole || 'admin'),
+      timestamp: String(log.timestamp || log.clientTimestamp || ''),
+      details: log.details && typeof log.details === 'object' ? log.details : {}
+    })).filter((log) => log.id).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }
 
   function ensureExternalStateShape(externalState) {

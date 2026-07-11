@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=6.7" />
+  <link rel="stylesheet" href="styles.css?v=6.8" />
 </head>
 <body>
   <section id="loginScreen" class="login-screen" aria-label="Acesso ao sistema">
@@ -332,6 +332,40 @@
             <div id="groupSettings" class="group-settings"></div>
             <button class="btn primary" type="submit">Salvar configurações</button>
           </form>
+
+          <section class="audit-section" aria-labelledby="auditTitle">
+            <div class="audit-section-header">
+              <div>
+                <h3 id="auditTitle">Histórico de alterações</h3>
+                <p>Veja qual administrador realizou cada mudança. São exibidas as 100 ações mais recentes.</p>
+              </div>
+              <div id="auditSummary" class="audit-summary" aria-live="polite">
+                <span>Última alteração</span>
+                <strong>Nenhum registro disponível</strong>
+                <small>O histórico começa após ativar a auditoria.</small>
+              </div>
+            </div>
+            <button id="toggleAuditBtn" class="btn secondary" type="button" aria-expanded="false">Ver histórico de alterações</button>
+            <div id="auditHistoryContent" class="audit-history-content hidden">
+              <div class="audit-filters">
+                <div class="field">
+                  <label for="auditUserFilter">Administrador</label>
+                  <select id="auditUserFilter"><option value="all">Todos os administradores</option></select>
+                </div>
+                <div class="field">
+                  <label for="auditActionFilter">Tipo de alteração</label>
+                  <select id="auditActionFilter"><option value="all">Todas as ações</option></select>
+                </div>
+              </div>
+              <div class="table-wrap audit-table-wrap">
+                <table class="audit-table">
+                  <thead><tr><th>Data e hora</th><th>Administrador</th><th>Ação</th><th>Descrição</th></tr></thead>
+                  <tbody id="auditTable"><tr><td colspan="4" class="muted-cell">Nenhum registro disponível.</td></tr></tbody>
+                </table>
+              </div>
+              <p class="audit-note">Registros de auditoria não podem ser editados ou apagados pelo aplicativo. Alterações anteriores à v6.8 não podem ser recuperadas retroativamente.</p>
+            </div>
+          </section>
         </div>
 
         <div class="panel">
@@ -361,9 +395,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=6.7"></script>
-  <script src="auth-service.js?v=6.7"></script>
-  <script src="firebase-service.js?v=6.7"></script>
-  <script src="app.js?v=6.7"></script>
+  <script src="firebase-config.js?v=6.8"></script>
+  <script src="auth-service.js?v=6.8"></script>
+  <script src="firebase-service.js?v=6.8"></script>
+  <script src="app.js?v=6.8"></script>
 </body>
 </html>

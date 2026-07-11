@@ -1891,3 +1891,120 @@ tbody tr:last-child td { border-bottom: 0; }
   border-color: rgba(31, 41, 55, 0.52);
   background: rgba(241, 245, 249, 0.96);
 }
+
+/* v6.8 — histórico de alterações dentro das configurações */
+.audit-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #dbe3ee;
+}
+
+.audit-section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.55fr);
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.audit-section h3 {
+  margin: 0 0 5px;
+  color: #111827;
+  font-size: 1.02rem;
+}
+
+.audit-section p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.audit-summary {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.audit-summary span,
+.audit-summary small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.audit-summary strong {
+  color: #111827;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.audit-history-content {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.audit-table-wrap {
+  max-height: 430px;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.audit-table {
+  min-width: 840px;
+}
+
+.audit-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #1f2937;
+  color: #fff;
+}
+
+.audit-table td {
+  vertical-align: top;
+}
+
+.audit-action-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.audit-note {
+  margin-top: 10px !important;
+  font-size: 0.74rem !important;
+}
+
+@media (max-width: 760px) {
+  .audit-section-header,
+  .audit-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audit-history-content {
+    padding: 10px;
+  }
+}

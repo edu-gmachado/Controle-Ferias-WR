@@ -741,9 +741,9 @@
             Folga: ${offGroups.map(shortGroupName).join(' • ')}
           </span>
           <span class="day-lines">
-            <span><span class="metric-label"><span class="metric-label-full">Pres.</span><span class="metric-label-short">P</span></span><strong>${day.present.length}</strong></span>
-            <span><span class="metric-label"><span class="metric-label-full">Férias</span><span class="metric-label-short">F</span></span><strong>${day.vacation.length}</strong></span>
-            <span><span class="metric-label"><span class="metric-label-full">Folgas</span><span class="metric-label-short">Fg</span></span><strong>${day.off.length}</strong></span>
+            <span><span class="metric-label">Pres.</span><strong>${day.present.length}</strong></span>
+            <span><span class="metric-label">Férias</span><strong>${day.vacation.length}</strong></span>
+            <span><span class="metric-label">Folgas</span><strong>${day.off.length}</strong></span>
           </span>
           ${bands}
         </button>

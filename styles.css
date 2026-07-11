@@ -2612,3 +2612,11 @@ tbody tr:last-child td { border-bottom: 0; }
     min-height: var(--day-min-height, 84px);
   }
 }
+
+/* v7.3 — evita abreviações duplicadas nos indicadores do calendário */
+.calendar-day .metric-label-short {
+  display: none !important;
+}
+.calendar-day .metric-label-full {
+  display: inline !important;
+}

@@ -1,12 +1,12 @@
-const CACHE_NAME = 'controle-ferias-3turno-v7.2.0.0';
+const CACHE_NAME = 'controle-ferias-3turno-v7.3.0.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=7.2',
-  './app.js?v=7.2',
-  './firebase-config.js?v=7.2',
-  './auth-service.js?v=7.2',
-  './firebase-service.js?v=7.2',
+  './styles.css?v=7.3',
+  './app.js?v=7.3',
+  './firebase-config.js?v=7.3',
+  './auth-service.js?v=7.3',
+  './firebase-service.js?v=7.3',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'

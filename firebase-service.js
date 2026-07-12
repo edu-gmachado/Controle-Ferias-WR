@@ -6,6 +6,7 @@
   const SETTINGS_DOC = 'scale';
   const MEMBERS_COLLECTION = 'members';
   const VACATIONS_COLLECTION = 'vacations';
+  const TEMPORARY_CHANGES_COLLECTION = 'temporaryChanges';
   const AUDIT_COLLECTION = 'auditLogs';
   const AUDIT_LIMIT = 100;
 
@@ -17,11 +18,14 @@
       settings: null,
       members: [],
       vacations: [],
+      temporaryChanges: [],
       auditLogs: []
     };
     let gotSettings = false;
     let gotMembers = false;
     let gotVacations = false;
+    let gotTemporaryChanges = false;
+    let temporaryChangesAvailable = true;
     let gotAudit = false;
     let syncStarted = false;
     let onData = () => {};
@@ -138,18 +142,26 @@
 
     async function deleteMember(memberId, options = {}) {
       ensureCanWrite();
-      const vacations = await vacationsRef().where('memberId', '==', memberId).get();
+      const [vacations, temporaryChanges] = await Promise.all([
+        vacationsRef().where('memberId', '==', memberId).get(),
+        temporaryChangesRef().where('memberId', '==', memberId).get()
+      ]);
       const batch = db.batch();
       batch.delete(membersRef().doc(memberId));
       vacations.forEach((doc) => batch.delete(doc.ref));
+      temporaryChanges.forEach((doc) => batch.delete(doc.ref));
 
       const memberName = options.memberName || 'colaborador';
       addAuditToBatch(batch, {
         action: 'delete_member',
         entityType: 'member',
         entityId: memberId,
-        description: `Excluiu o colaborador ${memberName}${vacations.size ? ` e ${vacations.size} período(s) de férias vinculado(s)` : ''}.`,
-        details: { memberName, deletedVacations: vacations.size }
+        description: `Excluiu o colaborador ${memberName}${vacations.size ? ` e ${vacations.size} período(s) de férias vinculado(s)` : ''}${temporaryChanges.size ? `, além de ${temporaryChanges.size} alteração(ões) temporária(s)` : ''}.`,
+        details: {
+          memberName,
+          deletedVacations: vacations.size,
+          deletedTemporaryChanges: temporaryChanges.size
+        }
       });
       await batch.commit();
     }
@@ -210,15 +222,79 @@
       await batch.commit();
     }
 
+
+    async function upsertTemporaryChange(change, options = {}) {
+      ensureCanWrite();
+      const actor = getActor();
+      const action = options.action === 'create' ? 'create_temporary_change' : 'update_temporary_change';
+      const timestamp = serverTimestamp();
+      const batch = db.batch();
+      const payload = {
+        type: change.type,
+        memberId: change.memberId || '',
+        name: change.name || '',
+        sector: change.sector || '',
+        group: change.group || '',
+        startDate: change.startDate,
+        endDate: change.endDate,
+        notes: change.notes || '',
+        updatedAt: timestamp,
+        updatedByUid: actor.uid,
+        updatedByEmail: actor.email
+      };
+
+      if (action === 'create_temporary_change') {
+        payload.createdAt = timestamp;
+        payload.createdByUid = actor.uid;
+        payload.createdByEmail = actor.email;
+      }
+
+      batch.set(temporaryChangesRef().doc(change.id), payload, { merge: true });
+      addAuditToBatch(batch, {
+        action,
+        entityType: 'temporary_change',
+        entityId: change.id,
+        description: `${action === 'create_temporary_change' ? 'Criou' : 'Alterou'} uma alteração temporária para ${options.memberName || change.name || 'colaborador'} (${change.startDate} a ${change.endDate}).`,
+        details: {
+          memberName: options.memberName || change.name || '',
+          type: change.type,
+          memberId: change.memberId || '',
+          startDate: change.startDate,
+          endDate: change.endDate
+        }
+      });
+      await batch.commit();
+    }
+
+    async function deleteTemporaryChange(changeId, options = {}) {
+      ensureCanWrite();
+      const batch = db.batch();
+      batch.delete(temporaryChangesRef().doc(changeId));
+      addAuditToBatch(batch, {
+        action: 'delete_temporary_change',
+        entityType: 'temporary_change',
+        entityId: changeId,
+        description: `Excluiu uma alteração temporária de ${options.memberName || 'colaborador'}${options.startDate && options.endDate ? ` (${options.startDate} a ${options.endDate})` : ''}.`,
+        details: {
+          memberName: options.memberName || '',
+          type: options.type || '',
+          startDate: options.startDate || '',
+          endDate: options.endDate || ''
+        }
+      });
+      await batch.commit();
+    }
+
     async function replaceAll(state, options = {}) {
       ensureCanWrite();
-      const [membersSnapshot, vacationsSnapshot] = await Promise.all([
+      const [membersSnapshot, vacationsSnapshot, temporaryChangesSnapshot] = await Promise.all([
         membersRef().get(),
-        vacationsRef().get()
+        vacationsRef().get(),
+        temporaryChangesRef().get()
       ]);
 
-      const writeCount = membersSnapshot.size + vacationsSnapshot.size +
-        (state.members || []).length + (state.vacations || []).length + 2;
+      const writeCount = membersSnapshot.size + vacationsSnapshot.size + temporaryChangesSnapshot.size +
+        (state.members || []).length + (state.vacations || []).length + (state.temporaryChanges || []).length + 2;
       if (writeCount > 450) {
         throw new Error('A operação possui dados demais para um único lote seguro. Exporte e importe em partes menores.');
       }
@@ -228,6 +304,7 @@
       const batch = db.batch();
       membersSnapshot.forEach((doc) => batch.delete(doc.ref));
       vacationsSnapshot.forEach((doc) => batch.delete(doc.ref));
+      temporaryChangesSnapshot.forEach((doc) => batch.delete(doc.ref));
 
       batch.set(settingsRef(), {
         baseDate: state.settings.baseDate,
@@ -267,6 +344,25 @@
         });
       });
 
+      (state.temporaryChanges || []).forEach((change) => {
+        batch.set(temporaryChangesRef().doc(change.id), {
+          type: change.type,
+          memberId: change.memberId || '',
+          name: change.name || '',
+          sector: change.sector || '',
+          group: change.group || '',
+          startDate: change.startDate,
+          endDate: change.endDate,
+          notes: change.notes || '',
+          createdAt: timestamp,
+          createdByUid: actor.uid,
+          createdByEmail: actor.email,
+          updatedAt: timestamp,
+          updatedByUid: actor.uid,
+          updatedByEmail: actor.email
+        });
+      });
+
       addAuditToBatch(batch, {
         action: options.action || 'replace_all',
         entityType: 'database',
@@ -274,7 +370,8 @@
         description: options.description || 'Substituiu os dados de membros, férias e configurações.',
         details: {
           members: (state.members || []).length,
-          vacations: (state.vacations || []).length
+          vacations: (state.vacations || []).length,
+          temporaryChanges: (state.temporaryChanges || []).length
         }
       });
       await batch.commit();
@@ -291,8 +388,10 @@
       gotSettings = false;
       gotMembers = false;
       gotVacations = false;
+      gotTemporaryChanges = false;
+      temporaryChangesAvailable = true;
       gotAudit = !authService?.isAdmin?.();
-      lastRemote = { settings: null, members: [], vacations: [], auditLogs: [] };
+      lastRemote = { settings: null, members: [], vacations: [], temporaryChanges: [], auditLogs: [] };
       syncStarted = true;
 
       emitStatus({
@@ -318,6 +417,13 @@
         emitRemoteState();
       }, handleSnapshotError));
 
+      listeners.push(temporaryChangesRef().onSnapshot((snapshot) => {
+        gotTemporaryChanges = true;
+        temporaryChangesAvailable = true;
+        lastRemote.temporaryChanges = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        emitRemoteState();
+      }, handleTemporarySnapshotError));
+
       if (authService?.isAdmin?.()) {
         listeners.push(auditRef()
           .orderBy('timestamp', 'desc')
@@ -333,13 +439,14 @@
     }
 
     function emitRemoteState() {
-      if (!gotSettings || !gotMembers || !gotVacations || !gotAudit) return;
+      if (!gotSettings || !gotMembers || !gotVacations || !gotTemporaryChanges || !gotAudit) return;
 
       const normalizedState = normalizeRemoteState({
-        version: 680,
+        version: 740,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || [],
+        temporaryChanges: lastRemote.temporaryChanges || [],
         auditLogs: lastRemote.auditLogs || []
       });
 
@@ -353,7 +460,9 @@
         role: authService?.getCurrentRole?.() || null,
         email: authService?.getCurrentUser?.()?.email || '',
         uid: authService?.getCurrentUser?.()?.uid || '',
-        message: `Nuvem sincronizada: ${normalizedState.members.length} membro(s), ${normalizedState.vacations.length} férias${authService?.isAdmin?.() ? ` e ${normalizedState.auditLogs.length} registro(s) de auditoria` : ''}.`
+        message: temporaryChangesAvailable
+          ? `Nuvem sincronizada: ${normalizedState.members.length} membro(s), ${normalizedState.vacations.length} férias e ${normalizedState.temporaryChanges.length} alteração(ões) temporária(s).`
+          : `Nuvem sincronizada: ${normalizedState.members.length} membro(s) e ${normalizedState.vacations.length} férias. Alterações temporárias estão bloqueadas pelas regras do Firestore.`
       });
     }
 
@@ -375,6 +484,21 @@
         notes: vacation.notes || vacation.note || vacation.observacao || ''
       })).filter((vacation) => vacation.id && vacation.memberId && vacation.startDate && vacation.endDate && vacation.startDate <= vacation.endDate);
 
+      const temporaryChanges = (remoteState.temporaryChanges || []).map((change) => ({
+        id: String(change.id || ''),
+        type: ['add_member', 'change_sector', 'deactivate_member'].includes(change.type) ? change.type : 'add_member',
+        memberId: String(change.memberId || ''),
+        name: String(change.name || ''),
+        sector: change.type === 'deactivate_member' ? '' : normalizeSectorValue(change.sector),
+        group: change.type === 'add_member' ? String(change.group || 'azul') : '',
+        startDate: normalizeDateValue(change.startDate),
+        endDate: normalizeDateValue(change.endDate),
+        notes: String(change.notes || '')
+      })).filter((change) => (
+        change.id && change.startDate && change.endDate && change.startDate <= change.endDate &&
+        ((change.type === 'add_member' && change.name) || (change.type !== 'add_member' && change.memberId))
+      ));
+
       const auditLogs = (remoteState.auditLogs || []).map((log) => ({
         id: String(log.id || ''),
         action: String(log.action || 'unknown'),
@@ -390,7 +514,7 @@
 
       auditLogs.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
 
-      return { version: 680, settings, members, vacations, auditLogs };
+      return { version: 740, settings, members, vacations, temporaryChanges, auditLogs };
     }
 
     function addAuditToBatch(batch, data) {
@@ -500,6 +624,24 @@
       });
     }
 
+    function handleTemporarySnapshotError(error) {
+      console.error('Alterações temporárias indisponíveis:', error);
+      gotTemporaryChanges = true;
+      temporaryChangesAvailable = false;
+      lastRemote.temporaryChanges = [];
+      emitRemoteState();
+      emitStatus({
+        mode: 'cloud',
+        configured: true,
+        authenticated: true,
+        authorized: true,
+        role: authService?.getCurrentRole?.() || null,
+        email: authService?.getCurrentUser?.()?.email || '',
+        uid: authService?.getCurrentUser?.()?.uid || '',
+        message: 'Dados principais sincronizados, mas alterações temporárias estão bloqueadas. Publique a regra temporaryChanges no Firestore.'
+      });
+    }
+
     function handleAuditSnapshotError(error) {
       console.error('Histórico de auditoria indisponível:', error);
       gotAudit = true;
@@ -528,6 +670,7 @@
     function settingsRef() { return rootDoc().collection(SETTINGS_COLLECTION).doc(SETTINGS_DOC); }
     function membersRef() { return rootDoc().collection(MEMBERS_COLLECTION); }
     function vacationsRef() { return rootDoc().collection(VACATIONS_COLLECTION); }
+    function temporaryChangesRef() { return rootDoc().collection(TEMPORARY_CHANGES_COLLECTION); }
     function auditRef() { return rootDoc().collection(AUDIT_COLLECTION); }
 
     function ensureCanWrite() {
@@ -546,6 +689,8 @@
       deleteMember,
       upsertVacation,
       deleteVacation,
+      upsertTemporaryChange,
+      deleteTemporaryChange,
       replaceAll,
       clearAll
     };

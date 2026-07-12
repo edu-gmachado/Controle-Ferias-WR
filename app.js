@@ -3,7 +3,8 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 720;
+  const APP_VERSION = 740;
+  const VACATIONS_PAGE_SIZE = 15;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
   const GROUP_DEFAULTS = {
@@ -31,6 +32,7 @@
   let currentMonth = selectedDate.slice(0, 7);
   let deferredInstallPrompt = null;
   let suppressCalendarClickUntil = 0;
+  let vacationPage = 1;
 
   const els = {};
 
@@ -117,6 +119,28 @@
       clearFiltersBtn: $('#clearFiltersBtn'),
       vacationsTable: $('#vacationsTable'),
       vacationHistorySummary: $('#vacationHistorySummary'),
+      vacationPagination: $('#vacationPagination'),
+      vacationFirstPageBtn: $('#vacationFirstPageBtn'),
+      vacationPrevPageBtn: $('#vacationPrevPageBtn'),
+      vacationPageInfo: $('#vacationPageInfo'),
+      vacationNextPageBtn: $('#vacationNextPageBtn'),
+      vacationLastPageBtn: $('#vacationLastPageBtn'),
+      temporaryChangeForm: $('#temporaryChangeForm'),
+      temporaryChangeId: $('#temporaryChangeId'),
+      temporaryChangeType: $('#temporaryChangeType'),
+      temporaryExistingMemberField: $('#temporaryExistingMemberField'),
+      temporaryMemberId: $('#temporaryMemberId'),
+      temporaryNewNameField: $('#temporaryNewNameField'),
+      temporaryMemberName: $('#temporaryMemberName'),
+      temporarySectorField: $('#temporarySectorField'),
+      temporarySector: $('#temporarySector'),
+      temporaryGroupField: $('#temporaryGroupField'),
+      temporaryGroup: $('#temporaryGroup'),
+      temporaryStart: $('#temporaryStart'),
+      temporaryEnd: $('#temporaryEnd'),
+      temporaryNotes: $('#temporaryNotes'),
+      clearTemporaryChangeForm: $('#clearTemporaryChangeForm'),
+      temporaryChangesTable: $('#temporaryChangesTable'),
       toggleMembersBtn: $('#toggleMembersBtn'),
       membersPanelContent: $('#membersPanelContent'),
       settingsPanel: $('#settingsPanel'),
@@ -183,16 +207,30 @@
       // Ao selecionar uma pessoa, o histórico completo fica disponível.
       els.filterMonth.value = '';
       els.filterStatus.value = 'all';
+      vacationPage = 1;
       renderVacationsTable();
     });
-    els.filterMonth.addEventListener('change', renderVacationsTable);
-    els.filterStatus.addEventListener('change', renderVacationsTable);
+    els.filterMonth.addEventListener('change', () => { vacationPage = 1; renderVacationsTable(); });
+    els.filterStatus.addEventListener('change', () => { vacationPage = 1; renderVacationsTable(); });
     els.clearFiltersBtn.addEventListener('click', () => {
       els.filterMember.value = 'all';
       els.filterMonth.value = '';
       els.filterStatus.value = 'all';
+      vacationPage = 1;
       renderVacationsTable();
     });
+
+    els.vacationFirstPageBtn.addEventListener('click', () => { vacationPage = 1; renderVacationsTable(); });
+    els.vacationPrevPageBtn.addEventListener('click', () => { vacationPage = Math.max(1, vacationPage - 1); renderVacationsTable(); });
+    els.vacationNextPageBtn.addEventListener('click', () => { vacationPage += 1; renderVacationsTable(); });
+    els.vacationLastPageBtn.addEventListener('click', () => {
+      vacationPage = Number(els.vacationLastPageBtn.dataset.lastPage || 1);
+      renderVacationsTable();
+    });
+
+    els.temporaryChangeType.addEventListener('change', renderTemporaryChangeFields);
+    els.temporaryChangeForm.addEventListener('submit', saveTemporaryChangeFromForm);
+    els.clearTemporaryChangeForm.addEventListener('click', clearTemporaryChangeForm);
 
     els.toggleMembersBtn.addEventListener('click', () => {
       const hidden = els.membersPanelContent.classList.toggle('hidden');
@@ -289,6 +327,7 @@
       state = createEmptyState();
       clearMemberFormSafe();
       clearVacationFormSafe();
+      clearTemporaryChangeFormSafe();
       if (previousAuthenticated || state.members.length || state.vacations.length) {
         renderAll();
         return;
@@ -407,6 +446,7 @@
     const selectors = [
       '#memberForm input', '#memberForm select', '#memberForm button',
       '#vacationForm input', '#vacationForm select', '#vacationForm textarea', '#vacationForm button',
+      '#temporaryChangeForm input', '#temporaryChangeForm select', '#temporaryChangeForm textarea', '#temporaryChangeForm button',
       '#settingsForm input', '#settingsForm button',
       '#sampleBtn', '#resetBtn', '#importFile'
     ];
@@ -479,6 +519,11 @@
     clearVacationForm();
   }
 
+  function clearTemporaryChangeFormSafe() {
+    if (!els.temporaryChangeId) return;
+    clearTemporaryChangeForm();
+  }
+
   async function migrateLocalDataToCloud() {
     if (!isCloudWriteMode()) {
       showToast(cloudWriteBlockMessage() || 'Entre como administrador para migrar dados locais.');
@@ -488,7 +533,7 @@
     if (!window.confirm(message)) return;
     try {
       const localState = structuredCloneSafe(initialLocalState || readMigratableLocalState());
-      if (!localState || (!localState.members.length && !localState.vacations.length)) {
+      if (!localState || (!localState.members.length && !localState.vacations.length && !(localState.temporaryChanges || []).length)) {
         showToast('Não há dados locais antigos para migrar neste navegador.');
         return;
       }
@@ -505,7 +550,7 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js?v=7.0.0', { updateViaCache: 'none' })
+      navigator.serviceWorker.register('./service-worker.js?v=7.4.0', { updateViaCache: 'none' })
         .then((registration) => {
           registration.update().catch(() => {});
           els.offlineBadge.textContent = 'Offline pronto';
@@ -531,8 +576,10 @@
     renderCalendar();
     renderDayDetails();
     renderMembersTable();
+    renderTemporaryChangesTable();
     renderVacationsTable();
     renderVacationAssistant();
+    renderTemporaryChangeFields();
   }
 
   function renderSelectors() {
@@ -551,7 +598,7 @@
       .join('');
     els.memberSector.value = SECTORS.includes(currentSector) ? currentSector : 'fabricacao';
 
-    const activeMembers = sortedMembers(state.members.filter((member) => member.active));
+    const activeMembers = sortMembersAlphabetically(state.members.filter((member) => member.active));
 
     const memberOptions = activeMembers.map((member) => (
       `<option value="${member.id}">${escapeHtml(member.name)} — ${escapeHtml(sectorName(member.sector))} — ${escapeHtml(groupName(member.group))}</option>`
@@ -563,9 +610,21 @@
       els.vacationMember.value = currentVacationMember;
     }
 
+    const temporaryGroupCurrent = els.temporaryGroup.value || 'azul';
+    els.temporaryGroup.innerHTML = groupOptions;
+    els.temporaryGroup.value = GROUPS.includes(temporaryGroupCurrent) ? temporaryGroupCurrent : 'azul';
+
+    const temporaryMemberCurrent = els.temporaryMemberId.value;
+    els.temporaryMemberId.innerHTML = activeMembers.length
+      ? activeMembers.map((member) => `<option value="${member.id}">${escapeHtml(member.name)} — ${escapeHtml(sectorName(member.sector))}</option>`).join('')
+      : '<option value="">Cadastre um membro ativo primeiro</option>';
+    if (activeMembers.some((member) => member.id === temporaryMemberCurrent)) {
+      els.temporaryMemberId.value = temporaryMemberCurrent;
+    }
+
     const filterCurrent = els.filterMember.value || 'all';
     els.filterMember.innerHTML = '<option value="all">Todos os colaboradores</option>' +
-      sortedMembers(state.members)
+      sortMembersAlphabetically(state.members)
         .map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`)
         .join('');
     if (filterCurrent === 'all' || state.members.some((member) => member.id === filterCurrent)) {
@@ -654,6 +713,9 @@
       create_vacation: 'Férias cadastradas',
       update_vacation: 'Férias alteradas',
       delete_vacation: 'Férias excluídas',
+      create_temporary_change: 'Alteração temporária criada',
+      update_temporary_change: 'Alteração temporária editada',
+      delete_temporary_change: 'Alteração temporária excluída',
       update_settings: 'Escala alterada',
       migration: 'Migração local',
       import_backup: 'Backup importado',
@@ -678,7 +740,7 @@
     const day = evaluateDay(selectedDate);
     const attention = getAttentionInfo(day);
     const monthStats = getMonthStats(currentMonth);
-    const activeCount = state.members.filter((member) => member.active).length;
+    const activeCount = day.activeMembers.length;
     const vacationImpact = day.vacation.filter((item) => item.scheduledToWork).length;
 
     els.kpiActive.textContent = activeCount;
@@ -874,6 +936,251 @@
     });
   }
 
+
+  function renderTemporaryChangeFields() {
+    if (!els.temporaryChangeType) return;
+    const type = els.temporaryChangeType.value || 'add_member';
+    const isAdd = type === 'add_member';
+    const isSectorChange = type === 'change_sector';
+
+    els.temporaryExistingMemberField.classList.toggle('hidden', isAdd);
+    els.temporaryNewNameField.classList.toggle('hidden', !isAdd);
+    els.temporarySectorField.classList.toggle('hidden', type === 'deactivate_member');
+    els.temporaryGroupField.classList.toggle('hidden', !isAdd);
+
+    els.temporaryMemberId.required = !isAdd;
+    els.temporaryMemberName.required = isAdd;
+    els.temporarySector.required = isAdd || isSectorChange;
+    els.temporaryGroup.required = isAdd;
+  }
+
+  function renderTemporaryChangesTable() {
+    if (!els.temporaryChangesTable) return;
+    const editable = canEditData();
+    const today = todayISO();
+    const changes = state.temporaryChanges
+      .slice()
+      .sort((a, b) => {
+        const statusDiff = temporaryChangeStatusRank(a, today) - temporaryChangeStatusRank(b, today);
+        if (statusDiff) return statusDiff;
+        return a.startDate.localeCompare(b.startDate) || temporaryChangeMemberName(a).localeCompare(temporaryChangeMemberName(b), 'pt-BR');
+      });
+
+    els.temporaryChangesTable.innerHTML = changes.length ? changes.map((change) => {
+      const status = vacationStatus(change, today);
+      return `
+        <tr>
+          <td><span class="pill temporary-type">${escapeHtml(temporaryChangeTypeLabel(change.type))}</span></td>
+          <td>${escapeHtml(temporaryChangeMemberName(change))}</td>
+          <td>${temporaryChangeDescriptionHtml(change)}</td>
+          <td>${formatDateBR(change.startDate)}</td>
+          <td>${formatDateBR(change.endDate)}</td>
+          <td>${escapeHtml(change.notes || '-')}</td>
+          <td>
+            ${editable ? `
+              <span class="table-actions">
+                <button class="icon-btn edit" type="button" data-edit-temporary="${change.id}">Editar</button>
+                <button class="icon-btn delete" type="button" data-delete-temporary="${change.id}">Excluir</button>
+              </span>
+            ` : '<span class="muted-cell">Visualização</span>'}
+            <span class="pill ${status.className} temporary-status-pill">${status.label}</span>
+          </td>
+        </tr>
+      `;
+    }).join('') : '<tr><td colspan="7" class="muted-cell">Nenhuma alteração temporária cadastrada.</td></tr>';
+
+    els.temporaryChangesTable.querySelectorAll('[data-edit-temporary]').forEach((button) => {
+      button.addEventListener('click', () => editTemporaryChange(button.dataset.editTemporary));
+    });
+    els.temporaryChangesTable.querySelectorAll('[data-delete-temporary]').forEach((button) => {
+      button.addEventListener('click', () => deleteTemporaryChange(button.dataset.deleteTemporary));
+    });
+  }
+
+  function temporaryChangeStatusRank(change, today) {
+    const status = vacationStatus(change, today).key;
+    return status === 'current' ? 0 : status === 'future' ? 1 : 2;
+  }
+
+  function temporaryChangeTypeLabel(type) {
+    const labels = {
+      add_member: 'Novo membro',
+      change_sector: 'Troca de setor',
+      deactivate_member: 'Inativação'
+    };
+    return labels[type] || 'Alteração';
+  }
+
+  function temporaryChangeMemberName(change) {
+    if (change.type === 'add_member') return change.name || 'Membro temporário';
+    return memberById(change.memberId)?.name || 'Membro removido';
+  }
+
+  function temporaryChangeDescriptionHtml(change) {
+    if (change.type === 'add_member') {
+      return `${sectorBadge(change.sector)} ${groupBadge(change.group)}`;
+    }
+    if (change.type === 'change_sector') {
+      return `Setor temporário: ${sectorBadge(change.sector)}`;
+    }
+    return '<span class="pill inactive">Inativo no período</span>';
+  }
+
+  async function saveTemporaryChangeFromForm(event) {
+    event.preventDefault();
+    const id = els.temporaryChangeId.value;
+    const type = els.temporaryChangeType.value;
+    const memberId = els.temporaryMemberId.value;
+    const name = els.temporaryMemberName.value.trim();
+    const sector = normalizeSector(els.temporarySector.value);
+    const group = GROUPS.includes(els.temporaryGroup.value) ? els.temporaryGroup.value : 'azul';
+    const startDate = els.temporaryStart.value;
+    const endDate = els.temporaryEnd.value;
+    const notes = els.temporaryNotes.value.trim();
+
+    if (!['add_member', 'change_sector', 'deactivate_member'].includes(type)) {
+      showToast('Selecione um tipo válido de alteração temporária.');
+      return;
+    }
+    if (!startDate || !endDate || startDate > endDate) {
+      showToast('Confira as datas da alteração temporária.');
+      return;
+    }
+    if (type === 'add_member' && !name) {
+      showToast('Informe o nome do membro temporário.');
+      return;
+    }
+    if (type !== 'add_member' && !memberId) {
+      showToast('Selecione o membro que receberá a alteração temporária.');
+      return;
+    }
+
+    const conflicts = findTemporaryChangeConflicts({ id, type, memberId, name, startDate, endDate });
+    if (conflicts.length) {
+      const details = conflicts.map((change) => `${temporaryChangeTypeLabel(change.type)} — ${formatDateBR(change.startDate)} a ${formatDateBR(change.endDate)}`).join('\n');
+      showToast('Existe outra alteração temporária conflitante no mesmo período.');
+      window.alert(`Não foi possível salvar porque já existe uma alteração temporária conflitante:\n${details}\n\nAjuste as datas para evitar regras simultâneas sobre a mesma pessoa.`);
+      return;
+    }
+
+    const payload = {
+      id: id || newId('t'),
+      type,
+      memberId: type === 'add_member' ? '' : memberId,
+      name: type === 'add_member' ? name : '',
+      sector: type === 'deactivate_member' ? '' : sector,
+      group: type === 'add_member' ? group : '',
+      startDate,
+      endDate,
+      notes
+    };
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.upsertTemporaryChange(payload, {
+          action: id ? 'update' : 'create',
+          memberName: temporaryChangeMemberName(payload)
+        });
+        upsertTemporaryChangeInMemory(payload);
+        renderAll();
+        showToast(id ? 'Alteração temporária atualizada na nuvem.' : 'Alteração temporária cadastrada na nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        upsertTemporaryChangeInMemory(payload);
+        renderAll();
+        showToast(id ? 'Alteração temporária atualizada.' : 'Alteração temporária cadastrada.');
+      }
+      clearTemporaryChangeForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível salvar a alteração temporária. Confira as regras do Firestore.');
+    }
+  }
+
+  function upsertTemporaryChangeInMemory(payload) {
+    const normalized = normalizeTemporaryChange(payload);
+    const index = state.temporaryChanges.findIndex((item) => String(item.id) === String(normalized.id));
+    if (index >= 0) state.temporaryChanges[index] = normalized;
+    else state.temporaryChanges.push(normalized);
+  }
+
+  function clearTemporaryChangeForm() {
+    els.temporaryChangeId.value = '';
+    els.temporaryChangeType.value = 'add_member';
+    els.temporaryMemberName.value = '';
+    els.temporarySector.value = 'fabricacao';
+    els.temporaryGroup.value = 'azul';
+    els.temporaryStart.value = '';
+    els.temporaryEnd.value = '';
+    els.temporaryNotes.value = '';
+    renderTemporaryChangeFields();
+  }
+
+  function editTemporaryChange(id) {
+    const change = state.temporaryChanges.find((item) => item.id === id);
+    if (!change) return;
+    els.temporaryChangeId.value = change.id;
+    els.temporaryChangeType.value = change.type;
+    els.temporaryMemberId.value = change.memberId || '';
+    els.temporaryMemberName.value = change.name || '';
+    els.temporarySector.value = change.sector || 'fabricacao';
+    els.temporaryGroup.value = change.group || 'azul';
+    els.temporaryStart.value = change.startDate;
+    els.temporaryEnd.value = change.endDate;
+    els.temporaryNotes.value = change.notes || '';
+    renderTemporaryChangeFields();
+    els.temporaryChangeType.focus();
+  }
+
+  async function deleteTemporaryChange(id) {
+    const change = state.temporaryChanges.find((item) => item.id === id);
+    if (!change) return;
+    if (!window.confirm(`Excluir a alteração temporária de ${temporaryChangeMemberName(change)} entre ${formatDateBR(change.startDate)} e ${formatDateBR(change.endDate)}?`)) return;
+
+    try {
+      if (isCloudWriteMode()) {
+        await dataService.deleteTemporaryChange(id, {
+          memberName: temporaryChangeMemberName(change),
+          type: change.type,
+          startDate: change.startDate,
+          endDate: change.endDate
+        });
+        state.temporaryChanges = state.temporaryChanges.filter((item) => item.id !== id);
+        renderAll();
+        showToast('Alteração temporária excluída da nuvem.');
+      } else {
+        if (shouldBlockWrite()) {
+          showToast(cloudWriteBlockMessage());
+          return;
+        }
+        state.temporaryChanges = state.temporaryChanges.filter((item) => item.id !== id);
+        renderAll();
+        showToast('Alteração temporária excluída.');
+      }
+      clearTemporaryChangeForm();
+    } catch (error) {
+      console.error(error);
+      showToast('Não foi possível excluir a alteração temporária.');
+    }
+  }
+
+  function findTemporaryChangeConflicts(candidate) {
+    return state.temporaryChanges.filter((change) => {
+      if (String(change.id) === String(candidate.id || '')) return false;
+      if (!periodsOverlap(candidate.startDate, candidate.endDate, change.startDate, change.endDate)) return false;
+
+      if (candidate.type === 'add_member') {
+        return change.type === 'add_member' &&
+          normalizeComparableName(change.name) === normalizeComparableName(candidate.name);
+      }
+
+      return change.type !== 'add_member' && String(change.memberId) === String(candidate.memberId);
+    });
+  }
+
   function renderVacationsTable() {
     const today = todayISO();
     const editable = canEditData();
@@ -895,7 +1202,6 @@
 
     const filteredVacations = state.vacations
       .slice()
-      .sort((a, b) => a.startDate.localeCompare(b.startDate))
       .filter((vacation) => {
         if (!vacation.startDate || !vacation.endDate) return false;
         if (!isGeneralView && vacation.memberId !== filterMember) return false;
@@ -904,37 +1210,55 @@
         const status = vacationStatus(vacation, today).key;
         if (filterStatus !== 'all' && status !== filterStatus) return false;
         return true;
-      });
+      })
+      .sort((a, b) => compareVacationsByProximity(a, b, today));
 
-    const rows = filteredVacations.map((vacation) => {
-        const member = memberById(vacation.memberId);
-        const status = vacationStatus(vacation, today);
-        return `
-          <tr>
-            <td>${escapeHtml(member ? member.name : 'Colaborador removido')}</td>
-            <td>${member ? sectorBadge(member.sector) : '<span class="pill inactive">Sem setor</span>'}</td>
-            <td>${member ? groupBadge(member.group) : '-'}</td>
-            <td>${formatDateBR(vacation.startDate)}</td>
-            <td>${formatDateBR(vacation.endDate)}</td>
-            <td>${daysBetween(vacation.startDate, vacation.endDate) + 1}</td>
-            <td><span class="pill ${status.className}">${status.label}</span></td>
-            <td>${escapeHtml(vacation.notes || '-')}</td>
-            <td>
-              ${editable ? `
-                <span class="table-actions">
-                  <button class="icon-btn edit" type="button" data-edit-vacation="${vacation.id}">Editar</button>
-                  <button class="icon-btn delete" type="button" data-delete-vacation="${vacation.id}">Excluir</button>
-                </span>
-              ` : '<span class="muted-cell">Visualização</span>'}
-            </td>
-          </tr>
-        `;
-      });
+    const totalItems = filteredVacations.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / VACATIONS_PAGE_SIZE));
+    vacationPage = Math.min(Math.max(1, vacationPage), totalPages);
+    const pageStart = (vacationPage - 1) * VACATIONS_PAGE_SIZE;
+    const pageItems = filteredVacations.slice(pageStart, pageStart + VACATIONS_PAGE_SIZE);
+
+    const rows = pageItems.map((vacation) => {
+      const member = memberById(vacation.memberId);
+      const status = vacationStatus(vacation, today);
+      return `
+        <tr>
+          <td>${escapeHtml(member ? member.name : 'Colaborador removido')}</td>
+          <td>${member ? sectorBadge(member.sector) : '<span class="pill inactive">Sem setor</span>'}</td>
+          <td>${member ? groupBadge(member.group) : '-'}</td>
+          <td>${formatDateBR(vacation.startDate)}</td>
+          <td>${formatDateBR(vacation.endDate)}</td>
+          <td>${daysBetween(vacation.startDate, vacation.endDate) + 1}</td>
+          <td><span class="pill ${status.className}">${status.label}</span></td>
+          <td>${escapeHtml(vacation.notes || '-')}</td>
+          <td>
+            ${editable ? `
+              <span class="table-actions">
+                <button class="icon-btn edit" type="button" data-edit-vacation="${vacation.id}">Editar</button>
+                <button class="icon-btn delete" type="button" data-delete-vacation="${vacation.id}">Excluir</button>
+              </span>
+            ` : '<span class="muted-cell">Visualização</span>'}
+          </td>
+        </tr>
+      `;
+    });
 
     const emptyMessage = isGeneralView
       ? 'Nenhuma férias em andamento ou futura cadastrada.'
       : 'Nenhuma férias encontrada para este colaborador e os filtros atuais.';
     els.vacationsTable.innerHTML = rows.join('') || `<tr><td colspan="9">${emptyMessage}</td></tr>`;
+
+    const showPagination = totalItems > VACATIONS_PAGE_SIZE;
+    els.vacationPagination.classList.toggle('hidden', !showPagination);
+    els.vacationPageInfo.textContent = totalItems
+      ? `Página ${vacationPage} de ${totalPages} • ${pageStart + 1}–${Math.min(pageStart + VACATIONS_PAGE_SIZE, totalItems)} de ${totalItems}`
+      : 'Nenhum período';
+    els.vacationFirstPageBtn.disabled = vacationPage <= 1;
+    els.vacationPrevPageBtn.disabled = vacationPage <= 1;
+    els.vacationNextPageBtn.disabled = vacationPage >= totalPages;
+    els.vacationLastPageBtn.disabled = vacationPage >= totalPages;
+    els.vacationLastPageBtn.dataset.lastPage = String(totalPages);
 
     els.vacationsTable.querySelectorAll('[data-edit-vacation]').forEach((button) => {
       button.addEventListener('click', () => editVacation(button.dataset.editVacation));
@@ -942,6 +1266,33 @@
     els.vacationsTable.querySelectorAll('[data-delete-vacation]').forEach((button) => {
       button.addEventListener('click', () => deleteVacation(button.dataset.deleteVacation));
     });
+  }
+
+  function compareVacationsByProximity(a, b, today) {
+    const statusOrder = { current: 0, future: 1, past: 2 };
+    const statusA = vacationStatus(a, today).key;
+    const statusB = vacationStatus(b, today).key;
+    const rankDiff = statusOrder[statusA] - statusOrder[statusB];
+    if (rankDiff) return rankDiff;
+
+    if (statusA === 'past') {
+      const endDiff = b.endDate.localeCompare(a.endDate);
+      if (endDiff) return endDiff;
+      return b.startDate.localeCompare(a.startDate);
+    }
+
+    if (statusA === 'current') {
+      const endDiff = a.endDate.localeCompare(b.endDate);
+      if (endDiff) return endDiff;
+    }
+
+    const startDiff = a.startDate.localeCompare(b.startDate);
+    if (startDiff) return startDiff;
+    const endDiff = a.endDate.localeCompare(b.endDate);
+    if (endDiff) return endDiff;
+    const memberA = memberById(a.memberId)?.name || '';
+    const memberB = memberById(b.memberId)?.name || '';
+    return memberA.localeCompare(memberB, 'pt-BR');
   }
 
   function renderVacationHistorySummary(memberId, today) {
@@ -1087,6 +1438,7 @@
         }
         state.members = state.members.filter((item) => item.id !== id);
         state.vacations = state.vacations.filter((vacation) => vacation.memberId !== id);
+        state.temporaryChanges = state.temporaryChanges.filter((change) => change.memberId !== id);
         showToast('Membro excluído.');
         renderAll();
       }
@@ -1115,23 +1467,10 @@
       return;
     }
 
-    const sameMemberConflicts = findVacationConflicts(memberId, startDate, endDate, id);
-    const otherMemberOverlaps = findVacationOverlapsWithOthers(memberId, startDate, endDate, id);
+    const overlapAnalysis = analyzeVacationOverlapRules(memberId, startDate, endDate, id);
 
-    if (sameMemberConflicts.length || otherMemberOverlaps.length) {
-      const warnings = [];
-      if (sameMemberConflicts.length) {
-        const text = sameMemberConflicts
-          .map((vacation) => `${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}`)
-          .join(', ');
-        warnings.push(`Conflito com férias já cadastradas para o mesmo colaborador: ${text}.`);
-      }
-      if (otherMemberOverlaps.length) {
-        warnings.push('Sobreposição com férias de outras pessoas:');
-        otherMemberOverlaps.forEach((overlap) => {
-          warnings.push(`- ${overlap.member.name}: ${overlap.days} dia${overlap.days === 1 ? '' : 's'} sobreposto${overlap.days === 1 ? '' : 's'} (${formatDateBR(overlap.overlapStart)} a ${formatDateBR(overlap.overlapEnd)})`);
-        });
-      }
+    if (overlapAnalysis.sameMemberConflicts.length || overlapAnalysis.alertRanges.length) {
+      const warnings = buildVacationOverlapConfirmation(overlapAnalysis);
       warnings.push('Deseja salvar mesmo assim?');
       if (!window.confirm(warnings.join('\n'))) return;
     }
@@ -1251,25 +1590,24 @@
       return;
     }
 
-    const sameMemberConflicts = findVacationConflicts(memberId, startDate, endDate, id);
-    const otherMemberOverlaps = findVacationOverlapsWithOthers(memberId, startDate, endDate, id);
+    const analysis = analyzeVacationOverlapRules(memberId, startDate, endDate, id);
     const blocks = [];
 
-    if (sameMemberConflicts.length) {
-      const items = sameMemberConflicts
+    if (analysis.sameMemberConflicts.length) {
+      const items = analysis.sameMemberConflicts
         .map((vacation) => `<li>${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}</li>`)
         .join('');
-      blocks.push(`<strong>Conflito com o mesmo colaborador:</strong><ul>${items}</ul>`);
+      blocks.push(`<strong>Conflito com férias já cadastradas para o mesmo colaborador:</strong><ul>${items}</ul>`);
     }
 
-    if (otherMemberOverlaps.length) {
-      const items = otherMemberOverlaps.map((overlap) => `
+    if (analysis.alertRanges.length) {
+      const items = analysis.alertRanges.map((range) => `
         <li>
-          <strong>${escapeHtml(overlap.member.name)}</strong> — ${overlap.days} dia${overlap.days === 1 ? '' : 's'} sobreposto${overlap.days === 1 ? '' : 's'}
-          <small>(${formatDateBR(overlap.overlapStart)} a ${formatDateBR(overlap.overlapEnd)})</small>
+          <strong>${formatDateBR(range.startDate)}${range.startDate === range.endDate ? '' : ` a ${formatDateBR(range.endDate)}`}</strong>
+          <small>${escapeHtml(range.reason)}. Pessoas já de férias: ${escapeHtml(range.names.join(', '))}.</small>
         </li>
       `).join('');
-      blocks.push(`<strong>Sobreposição com férias de outras pessoas:</strong><ul>${items}</ul>`);
+      blocks.push(`<strong>Confirmação necessária pela regra de cobertura:</strong><ul>${items}</ul>`);
     }
 
     if (!blocks.length) {
@@ -1407,6 +1745,7 @@
           ensureStateShape();
           clearMemberForm();
           clearVacationForm();
+          clearTemporaryChangeForm();
           showToast('Backup importado apenas para esta sessão. Configure a nuvem para manter os dados.');
           renderAll();
         }
@@ -1440,6 +1779,7 @@
 
       clearMemberForm();
       clearVacationForm();
+      clearTemporaryChangeForm();
       selectedDate = todayISO();
       currentMonth = selectedDate.slice(0, 7);
       els.selectedDate.value = selectedDate;
@@ -1470,14 +1810,56 @@
       }
       clearMemberForm();
       clearVacationForm();
+      clearTemporaryChangeForm();
     } catch (error) {
       console.error(error);
       showToast('Não foi possível apagar os dados.');
     }
   }
 
+  function effectiveMembersForDate(dateISO) {
+    const activeChanges = state.temporaryChanges.filter((change) => (
+      dateISO >= change.startDate && dateISO <= change.endDate
+    ));
+
+    const result = [];
+    state.members.filter((member) => member.active).forEach((member) => {
+      const memberChanges = activeChanges.filter((item) => item.type !== 'add_member' && item.memberId === member.id);
+      const inactiveChange = memberChanges.find((item) => item.type === 'deactivate_member');
+      if (inactiveChange) return;
+      const sectorChange = memberChanges.find((item) => item.type === 'change_sector');
+      result.push({
+        ...member,
+        sector: sectorChange ? sectorChange.sector : member.sector,
+        temporaryChangeId: sectorChange?.id || '',
+        temporaryChangeType: sectorChange?.type || ''
+      });
+    });
+
+    activeChanges
+      .filter((change) => change.type === 'add_member')
+      .forEach((change) => {
+        result.push({
+          id: `temporary:${change.id}`,
+          name: change.name,
+          sector: change.sector,
+          group: change.group,
+          active: true,
+          temporary: true,
+          temporaryChangeId: change.id,
+          temporaryChangeType: change.type
+        });
+      });
+
+    return result;
+  }
+
+  function effectiveMemberByIdOnDate(memberId, dateISO) {
+    return effectiveMembersForDate(dateISO).find((member) => String(member.id) === String(memberId)) || null;
+  }
+
   function evaluateDay(dateISO) {
-    const activeMembers = state.members.filter((member) => member.active);
+    const activeMembers = effectiveMembersForDate(dateISO);
     const result = {
       date: dateISO,
       activeMembers,
@@ -1566,7 +1948,7 @@
 
     return state.vacations
       .filter((vacation) => dateISO >= vacation.startDate && dateISO <= vacation.endDate)
-      .map((vacation) => ({ vacation, member: memberById(vacation.memberId) }))
+      .map((vacation) => ({ vacation, member: effectiveMemberByIdOnDate(vacation.memberId, dateISO) }))
       .filter(({ member }) => member && member.active)
       .sort((a, b) => {
         const groupDiff = GROUPS.indexOf(a.member.group) - GROUPS.indexOf(b.member.group);
@@ -1633,29 +2015,101 @@
     ));
   }
 
-  function findVacationOverlapsWithOthers(memberId, startDate, endDate, ignoreId = '') {
+  function analyzeVacationOverlapRules(memberId, startDate, endDate, ignoreId = '') {
     const normalizedStart = normalizeISODateValue(startDate);
     const normalizedEnd = normalizeISODateValue(endDate);
-    if (!normalizedStart || !normalizedEnd) return [];
-    return state.vacations
-      .filter((vacation) => (
-        String(vacation.memberId) !== String(memberId) &&
-        String(vacation.id) !== String(ignoreId) &&
-        periodsOverlap(normalizedStart, normalizedEnd, vacation.startDate, vacation.endDate)
-      ))
-      .map((vacation) => {
-        const member = memberById(vacation.memberId);
-        const overlapStart = maxISODate(normalizedStart, vacation.startDate);
-        const overlapEnd = minISODate(normalizedEnd, vacation.endDate);
-        return {
+    const sameMemberConflicts = findVacationConflicts(memberId, normalizedStart, normalizedEnd, ignoreId);
+    if (!normalizedStart || !normalizedEnd || normalizedStart > normalizedEnd) {
+      return { sameMemberConflicts, alertRanges: [] };
+    }
+
+    const dayAlerts = [];
+    const totalDays = daysBetween(normalizedStart, normalizedEnd) + 1;
+
+    for (let index = 0; index < totalDays; index += 1) {
+      const dateISO = addDaysISO(normalizedStart, index);
+      const candidateMember = effectiveMemberByIdOnDate(memberId, dateISO) || memberById(memberId);
+      if (!candidateMember) continue;
+
+      const existing = state.vacations
+        .filter((vacation) => (
+          String(vacation.memberId) !== String(memberId) &&
+          String(vacation.id) !== String(ignoreId) &&
+          dateISO >= vacation.startDate &&
+          dateISO <= vacation.endDate
+        ))
+        .map((vacation) => ({
           vacation,
-          member: member || { id: vacation.memberId, name: 'Colaborador removido', sector: 'fabricacao', group: 'azul' },
-          overlapStart,
-          overlapEnd,
-          days: daysBetween(overlapStart, overlapEnd) + 1
-        };
-      })
-      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'));
+          member: effectiveMemberByIdOnDate(vacation.memberId, dateISO)
+        }))
+        .filter((item) => item.member);
+
+      const sameSector = existing.filter((item) => item.member.sector === candidateMember.sector);
+      const totalTrigger = existing.length >= 2;
+      const sectorTrigger = sameSector.length >= 1;
+      if (!totalTrigger && !sectorTrigger) continue;
+
+      const relevant = totalTrigger ? existing : sameSector;
+      const names = [...new Set(relevant.map((item) => item.member.name))]
+        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      const reasons = [];
+      if (totalTrigger) reasons.push(`já existem ${existing.length} pessoas de férias`);
+      if (sectorTrigger) {
+        reasons.push(`${sameSector.length} do mesmo setor (${sectorName(candidateMember.sector)})`);
+      }
+
+      dayAlerts.push({
+        dateISO,
+        reason: reasons.join(' e '),
+        names
+      });
+    }
+
+    return {
+      sameMemberConflicts,
+      alertRanges: mergeVacationAlertDays(dayAlerts)
+    };
+  }
+
+  function mergeVacationAlertDays(dayAlerts) {
+    const ranges = [];
+    dayAlerts.forEach((alert) => {
+      const signature = `${alert.reason}|${alert.names.join('|')}`;
+      const previous = ranges[ranges.length - 1];
+      if (previous && previous.signature === signature && addDaysISO(previous.endDate, 1) === alert.dateISO) {
+        previous.endDate = alert.dateISO;
+        return;
+      }
+      ranges.push({
+        startDate: alert.dateISO,
+        endDate: alert.dateISO,
+        reason: alert.reason,
+        names: alert.names,
+        signature
+      });
+    });
+    return ranges.map(({ signature, ...range }) => range);
+  }
+
+  function buildVacationOverlapConfirmation(analysis) {
+    const warnings = [];
+    if (analysis.sameMemberConflicts.length) {
+      const text = analysis.sameMemberConflicts
+        .map((vacation) => `${formatDateBR(vacation.startDate)} a ${formatDateBR(vacation.endDate)}`)
+        .join(', ');
+      warnings.push(`Conflito com férias já cadastradas para o mesmo colaborador: ${text}.`);
+    }
+
+    if (analysis.alertRanges.length) {
+      warnings.push('A nova férias exige confirmação pela regra de cobertura:');
+      analysis.alertRanges.forEach((range) => {
+        const period = range.startDate === range.endDate
+          ? formatDateBR(range.startDate)
+          : `${formatDateBR(range.startDate)} a ${formatDateBR(range.endDate)}`;
+        warnings.push(`- ${period}: ${range.reason}. Pessoas já de férias: ${range.names.join(', ')}.`);
+      });
+    }
+    return warnings;
   }
 
   function vacationForMemberOnDate(memberId, dateISO) {
@@ -1710,6 +2164,10 @@
       if (groupDiff) return groupDiff;
       return a.name.localeCompare(b.name, 'pt-BR');
     });
+  }
+
+  function sortMembersAlphabetically(members) {
+    return members.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
   }
 
   function sortedItemsByMember(items) {
@@ -1868,6 +2326,7 @@
       },
       members: [],
       vacations: [],
+      temporaryChanges: [],
       auditLogs: []
     };
   }
@@ -1895,6 +2354,7 @@
         { id: 'm-karina', name: 'Karina Melo', group: 'vermelho', sector: 'embalagem', active: true },
         { id: 'm-lucas', name: 'Lucas Ferreira', group: 'verde', sector: 'embalagem', active: true }
       ],
+      temporaryChanges: [],
       vacations: [
         { id: 'v-ana-1', memberId: 'm-ana', startDate: plus(3), endDate: plus(12), notes: 'Férias programadas' },
         { id: 'v-diego-1', memberId: 'm-diego', startDate: plus(8), endDate: plus(18), notes: 'Mesmo setor para testar atenção' },
@@ -1932,6 +2392,7 @@
     state.version = APP_VERSION;
     if (!Array.isArray(state.members)) state.members = [];
     if (!Array.isArray(state.vacations)) state.vacations = [];
+    if (!Array.isArray(state.temporaryChanges)) state.temporaryChanges = [];
     if (!Array.isArray(state.auditLogs)) state.auditLogs = [];
 
     state.members = state.members.map((member, index) => ({
@@ -1951,6 +2412,12 @@
         endDate: vacation.endDate,
         notes: vacation.notes || ''
       }));
+
+    state.temporaryChanges = state.temporaryChanges
+      .map(normalizeTemporaryChange)
+      .filter((change) => (
+        change.id && change.type && change.startDate && change.endDate && change.startDate <= change.endDate
+      ));
 
     state.auditLogs = state.auditLogs.map((log) => ({
       id: String(log.id || ''),
@@ -1972,6 +2439,32 @@
     ensureStateShape();
     Object.assign(externalState, structuredCloneSafe(state));
     state = previous;
+  }
+
+  function normalizeTemporaryChange(change) {
+    const type = ['add_member', 'change_sector', 'deactivate_member'].includes(change?.type)
+      ? change.type
+      : 'add_member';
+    return {
+      id: String(change?.id || newId('t')),
+      type,
+      memberId: type === 'add_member' ? '' : String(change?.memberId || ''),
+      name: type === 'add_member' ? String(change?.name || 'Membro temporário').trim() : '',
+      sector: type === 'deactivate_member' ? '' : normalizeSector(change?.sector, 'fabricacao'),
+      group: type === 'add_member' && GROUPS.includes(change?.group) ? change.group : (type === 'add_member' ? 'azul' : ''),
+      startDate: normalizeISODateValue(change?.startDate),
+      endDate: normalizeISODateValue(change?.endDate),
+      notes: String(change?.notes || '')
+    };
+  }
+
+  function normalizeComparableName(value) {
+    return String(value || '')
+      .trim()
+      .toLocaleLowerCase('pt-BR')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
   }
 
   function inferSector(index) {

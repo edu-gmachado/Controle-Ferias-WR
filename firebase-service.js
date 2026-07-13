@@ -9,6 +9,7 @@
   const TEMPORARY_CHANGES_COLLECTION = 'temporaryChanges';
   const AUDIT_COLLECTION = 'auditLogs';
   const AUDIT_LIMIT = 100;
+  const DATA_VERSION = 802;
 
   function createFeriasCloudService(authService) {
     let db = null;
@@ -436,7 +437,7 @@
       if (!gotSettings || !gotMembers || !gotVacations || !gotTemporaryChanges || !gotAudit) return;
 
       const normalizedState = normalizeRemoteState({
-        version: 740,
+        version: DATA_VERSION,
         settings: lastRemote.settings || undefined,
         members: lastRemote.members || [],
         vacations: lastRemote.vacations || [],
@@ -508,7 +509,7 @@
 
       auditLogs.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
 
-      return { version: 740, settings, members, vacations, temporaryChanges, auditLogs };
+      return { version: DATA_VERSION, settings, members, vacations, temporaryChanges, auditLogs };
     }
 
     function addAuditToBatch(batch, data) {

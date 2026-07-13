@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 800;
+  const APP_VERSION = 802;
   const VACATIONS_PAGE_SIZE = 15;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
@@ -37,6 +37,16 @@
   const els = {};
 
   document.addEventListener('DOMContentLoaded', init);
+
+  function removeLegacyDestructiveControls() {
+    ['sampleBtn', 'resetBtn'].forEach((id) => document.getElementById(id)?.remove());
+    document.querySelectorAll('button').forEach((button) => {
+      const label = (button.textContent || '').trim().toLocaleLowerCase('pt-BR');
+      if (label === 'restaurar exemplo' || label === 'restaurar.' || label === 'apagar tudo' || label === 'apagar') {
+        button.remove();
+      }
+    });
+  }
 
   function init() {
     cacheElements();
@@ -545,24 +555,43 @@
   }
 
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js?v=8.0.0', { updateViaCache: 'none' })
-        .then((registration) => {
-          registration.update().catch(() => {});
-          els.offlineBadge.textContent = 'Offline pronto';
-          els.offlineBadge.className = 'badge ok';
-        })
-        .catch(() => {
-          els.offlineBadge.textContent = 'Offline indisponível';
-          els.offlineBadge.className = 'badge alert';
-        });
-    } else {
+    if (!('serviceWorker' in navigator)) {
       els.offlineBadge.textContent = 'Sem suporte offline';
       els.offlineBadge.className = 'badge alert';
+      return;
     }
+
+    let reloadingForNewWorker = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForNewWorker) return;
+      reloadingForNewWorker = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('./service-worker.js?v=8.0.2', { updateViaCache: 'none' })
+      .then((registration) => {
+        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        registration.addEventListener('updatefound', () => {
+          const worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+        registration.update().catch(() => {});
+        els.offlineBadge.textContent = 'Offline pronto';
+        els.offlineBadge.className = 'badge ok';
+      })
+      .catch(() => {
+        els.offlineBadge.textContent = 'Offline indisponível';
+        els.offlineBadge.className = 'badge alert';
+      });
   }
 
   function renderAll() {
+    removeLegacyDestructiveControls();
     ensureStateShape();
     renderCloudPanel();
     renderSelectors();
@@ -715,8 +744,6 @@
       update_settings: 'Escala alterada',
       migration: 'Migração local',
       import_backup: 'Backup importado',
-      restore_sample: 'Exemplo restaurado',
-      reset_all: 'Dados apagados',
       replace_all: 'Dados substituídos'
     };
     return labels[action] || 'Alteração';
@@ -1681,7 +1708,11 @@
     try {
       if (isCloudWriteMode()) {
         await dataService.setSettings(nextSettings);
-        showToast('Configurações salvas na nuvem.');
+        // Atualização imediata da interface. O listener do Firestore confirma
+        // o mesmo estado em seguida, sem deixar a data-base aparentemente presa.
+        state.settings = structuredCloneSafe(nextSettings);
+        renderAll();
+        showToast(`Escala atualizada. Nova data-base: ${formatDateBR(baseDate)}.`);
       } else {
         if (shouldBlockWrite()) {
           showToast(cloudWriteBlockMessage());
@@ -2267,20 +2298,12 @@
 
   function ensureStateShape() {
     if (!state || typeof state !== 'object') state = createEmptyState();
-    const previousVersion = Number(state.version || 1);
     if (!state.settings) state.settings = createEmptyState().settings;
     if (!state.settings.baseDate) state.settings.baseDate = todayISO();
     if (!state.settings.groups) state.settings.groups = structuredCloneSafe(GROUP_DEFAULTS);
 
-    const looksLikeOldDefaultOrder = previousVersion < APP_VERSION &&
-      Number(state.settings.groups?.azul?.offset) === 0 &&
-      Number(state.settings.groups?.verde?.offset) === 2 &&
-      Number(state.settings.groups?.amarelo?.offset) === 4 &&
-      Number(state.settings.groups?.vermelho?.offset) === 6;
-
-    if (looksLikeOldDefaultOrder) {
-      state.settings.groups = structuredCloneSafe(GROUP_DEFAULTS);
-    }
+    // Não reaplique migrações antigas a cada sincronização da nuvem.
+    // A configuração salva pelo administrador deve sempre prevalecer.
 
     GROUPS.forEach((key) => {
       state.settings.groups[key] = {

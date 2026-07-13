@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 740;
+  const APP_VERSION = 800;
   const VACATIONS_PAGE_SIZE = 15;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
@@ -157,8 +157,6 @@
       exportBtn: $('#exportBtn'),
       exportBtnTop: $('#exportBtnTop'),
       importFile: $('#importFile'),
-      sampleBtn: $('#sampleBtn'),
-      resetBtn: $('#resetBtn'),
       installAppBtn: $('#installAppBtn'),
       toast: $('#toast')
     });
@@ -256,8 +254,6 @@
     els.exportBtn.addEventListener('click', exportBackup);
     els.exportBtnTop.addEventListener('click', exportBackup);
     els.importFile.addEventListener('change', importBackup);
-    els.sampleBtn.addEventListener('click', restoreSampleData);
-    els.resetBtn.addEventListener('click', resetAllData);
     els.loginForm.addEventListener('submit', loginToCloud);
     els.logoutBtn.addEventListener('click', logoutFromCloud);
     els.loginLogoutBtn.addEventListener('click', logoutFromCloud);
@@ -448,7 +444,7 @@
       '#vacationForm input', '#vacationForm select', '#vacationForm textarea', '#vacationForm button',
       '#temporaryChangeForm input', '#temporaryChangeForm select', '#temporaryChangeForm textarea', '#temporaryChangeForm button',
       '#settingsForm input', '#settingsForm button',
-      '#sampleBtn', '#resetBtn', '#importFile'
+      '#importFile'
     ];
     document.querySelectorAll(selectors.join(',')).forEach((element) => {
       if (element.id === 'toggleSettingsBtn') return;
@@ -550,7 +546,7 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js?v=7.4.0', { updateViaCache: 'none' })
+      navigator.serviceWorker.register('./service-worker.js?v=8.0.0', { updateViaCache: 'none' })
         .then((registration) => {
           registration.update().catch(() => {});
           els.offlineBadge.textContent = 'Offline pronto';
@@ -1759,64 +1755,6 @@
     reader.readAsText(file, 'utf-8');
   }
 
-  async function restoreSampleData() {
-    if (!window.confirm('Restaurar dados de exemplo? Os dados atuais serão substituídos.')) return;
-    const sample = createSampleState();
-
-    try {
-      if (isCloudWriteMode()) {
-        await dataService.replaceAll(sample, { action: 'restore_sample', description: 'Restaurou os dados de exemplo do aplicativo.' });
-        showToast('Dados de exemplo enviados para a nuvem.');
-      } else {
-        if (shouldBlockWrite()) {
-          showToast(cloudWriteBlockMessage());
-          return;
-        }
-        state = sample;
-        showToast('Dados de exemplo carregados apenas nesta sessão. Configure a nuvem para manter os dados.');
-        renderAll();
-      }
-
-      clearMemberForm();
-      clearVacationForm();
-      clearTemporaryChangeForm();
-      selectedDate = todayISO();
-      currentMonth = selectedDate.slice(0, 7);
-      els.selectedDate.value = selectedDate;
-      els.monthPicker.value = currentMonth;
-      els.filterMonth.value = '';
-    } catch (error) {
-      console.error(error);
-      showToast('Não foi possível restaurar os dados de exemplo.');
-    }
-  }
-
-  async function resetAllData() {
-    if (!window.confirm('Apagar todos os membros, férias e configurações?')) return;
-    const empty = createEmptyState();
-
-    try {
-      if (isCloudWriteMode()) {
-        await dataService.clearAll(empty, { action: 'reset_all', description: 'Apagou todos os membros e férias da nuvem.' });
-        showToast('Todos os dados foram apagados da nuvem.');
-      } else {
-        if (shouldBlockWrite()) {
-          showToast(cloudWriteBlockMessage());
-          return;
-        }
-        state = empty;
-        showToast('Todos os dados foram apagados desta sessão.');
-        renderAll();
-      }
-      clearMemberForm();
-      clearVacationForm();
-      clearTemporaryChangeForm();
-    } catch (error) {
-      console.error(error);
-      showToast('Não foi possível apagar os dados.');
-    }
-  }
-
   function effectiveMembersForDate(dateISO) {
     const activeChanges = state.temporaryChanges.filter((change) => (
       dateISO >= change.startDate && dateISO <= change.endDate
@@ -2312,10 +2250,6 @@
     [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach((key) => localStorage.removeItem(key));
   }
 
-  function saveState() {
-    // A partir da v5.1, o app não persiste mais dados operacionais no localStorage.
-    // Dados devem ficar no Firestore; localStorage antigo só é usado para migração manual.
-  }
 
   function createEmptyState() {
     return {
@@ -2328,40 +2262,6 @@
       vacations: [],
       temporaryChanges: [],
       auditLogs: []
-    };
-  }
-
-  function createSampleState() {
-    const baseDate = todayISO();
-    const plus = (days) => addDaysISO(baseDate, days);
-    return {
-      version: APP_VERSION,
-      settings: {
-        baseDate,
-        groups: structuredCloneSafe(GROUP_DEFAULTS)
-      },
-      members: [
-        { id: 'm-ana', name: 'Ana Souza', group: 'azul', sector: 'fabricacao', active: true },
-        { id: 'm-bruno', name: 'Bruno Lima', group: 'azul', sector: 'fabricacao', active: true },
-        { id: 'm-carla', name: 'Carla Mendes', group: 'amarelo', sector: 'fabricacao', active: true },
-        { id: 'm-diego', name: 'Diego Alves', group: 'amarelo', sector: 'fabricacao', active: true },
-        { id: 'm-elisa', name: 'Elisa Rocha', group: 'vermelho', sector: 'fabricacao', active: true },
-        { id: 'm-felipe', name: 'Felipe Santos', group: 'vermelho', sector: 'fabricacao', active: true },
-        { id: 'm-gabriela', name: 'Gabriela Nunes', group: 'verde', sector: 'embalagem', active: true },
-        { id: 'm-henrique', name: 'Henrique Costa', group: 'verde', sector: 'embalagem', active: true },
-        { id: 'm-iris', name: 'Íris Martins', group: 'azul', sector: 'embalagem', active: true },
-        { id: 'm-joao', name: 'João Pereira', group: 'amarelo', sector: 'embalagem', active: true },
-        { id: 'm-karina', name: 'Karina Melo', group: 'vermelho', sector: 'embalagem', active: true },
-        { id: 'm-lucas', name: 'Lucas Ferreira', group: 'verde', sector: 'embalagem', active: true }
-      ],
-      temporaryChanges: [],
-      vacations: [
-        { id: 'v-ana-1', memberId: 'm-ana', startDate: plus(3), endDate: plus(12), notes: 'Férias programadas' },
-        { id: 'v-diego-1', memberId: 'm-diego', startDate: plus(8), endDate: plus(18), notes: 'Mesmo setor para testar atenção' },
-        { id: 'v-elisa-1', memberId: 'm-elisa', startDate: plus(9), endDate: plus(15), notes: 'Teste de 2 na fabricação' },
-        { id: 'v-iris-1', memberId: 'm-iris', startDate: plus(20), endDate: plus(29), notes: 'Cobertura combinada' },
-        { id: 'v-karina-1', memberId: 'm-karina', startDate: plus(-5), endDate: plus(2), notes: 'Em andamento' }
-      ]
     };
   }
 
@@ -2524,17 +2424,7 @@
     return aStart <= bEnd && bStart <= aEnd;
   }
 
-  function maxISODate(a, b) {
-    const normalizedA = normalizeISODateValue(a);
-    const normalizedB = normalizeISODateValue(b);
-    return dateOrdinal(normalizedA) >= dateOrdinal(normalizedB) ? normalizedA : normalizedB;
-  }
 
-  function minISODate(a, b) {
-    const normalizedA = normalizeISODateValue(a);
-    const normalizedB = normalizeISODateValue(b);
-    return dateOrdinal(normalizedA) <= dateOrdinal(normalizedB) ? normalizedA : normalizedB;
-  }
 
   function periodIntersectsMonth(startDate, endDate, monthISO) {
     const [year, month] = monthISO.split('-').map(Number);
@@ -2596,9 +2486,6 @@
     return positiveModulo(Math.round(value), 8);
   }
 
-  function firstName(name) {
-    return String(name || '').trim().split(/\s+/)[0] || 'Férias';
-  }
 
   function newId(prefix) {
     if (window.crypto && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;

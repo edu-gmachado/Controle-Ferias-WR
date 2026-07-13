@@ -1,12 +1,12 @@
-const CACHE_NAME = 'controle-ferias-3turno-v7.4.0.0';
+const CACHE_NAME = 'controle-ferias-3turno-v8.0.0.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=7.4',
-  './app.js?v=7.4',
-  './firebase-config.js?v=7.4',
-  './auth-service.js?v=7.4',
-  './firebase-service.js?v=7.4',
+  './styles.css?v=8.0',
+  './app.js?v=8.0',
+  './firebase-config.js?v=8.0',
+  './auth-service.js?v=8.0',
+  './firebase-service.js?v=8.0',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -23,9 +23,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys
-        .filter((key) => key !== CACHE_NAME)
-        .map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -35,19 +35,36 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url);
 
-  // Não cacheia chamadas externas do Firebase/Google/CDNs para evitar dados de banco obsoletos.
+  // Firebase, Google e CDNs devem sempre vir da rede para evitar respostas obsoletas.
   if (requestUrl.origin !== self.location.origin) {
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // Navegação: prioriza a rede e usa o HTML em cache somente quando estiver offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Recursos estáticos: prioriza a rede; em falha, retorna somente o recurso exato do cache.
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
+      .catch(() => caches.match(event.request))
   );
 });

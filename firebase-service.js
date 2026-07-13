@@ -377,12 +377,6 @@
       await batch.commit();
     }
 
-    async function clearAll(emptyState, options = {}) {
-      await replaceAll(emptyState, {
-        action: options.action || 'reset_all',
-        description: options.description || 'Apagou os membros, férias e restaurou as configurações iniciais.'
-      });
-    }
 
     function startRealtimeListeners(status) {
       gotSettings = false;
@@ -691,8 +685,7 @@
       deleteVacation,
       upsertTemporaryChange,
       deleteTemporaryChange,
-      replaceAll,
-      clearAll
+      replaceAll
     };
   }
 

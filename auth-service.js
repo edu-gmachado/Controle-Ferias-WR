@@ -25,7 +25,7 @@
       email: '',
       uid: '',
       message: configured
-        ? 'Firebase configurado. Entre para sincronizar os dados.'
+        ? 'Entre para sincronizar os dados.'
         : 'Modo local: preencha firebase-config.js para ativar sincronização em tempo real.'
     };
     let onStatus = () => {};
@@ -48,7 +48,7 @@
           role: null,
           email: '',
           uid: '',
-          message: 'Firebase configurado, mas o SDK não carregou. O app continuará local até haver internet.'
+          message: 'O SDK do Firebase não carregou. O app continuará local até haver internet.'
         });
         return;
       }
@@ -78,7 +78,7 @@
               role: null,
               email: '',
               uid: '',
-              message: 'Firebase configurado. Entre com e-mail e senha para sincronizar os dados.'
+              message: 'Entre com e-mail e senha para sincronizar os dados.'
             });
             return;
           }

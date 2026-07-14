@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 830;
+  const APP_VERSION = 840;
   const VACATIONS_PAGE_SIZE = 15;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
@@ -583,7 +583,7 @@
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('./service-worker.js?v=8.3.0', { updateViaCache: 'none' })
+    navigator.serviceWorker.register('./service-worker.js?v=8.4.0', { updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         registration.addEventListener('updatefound', () => {

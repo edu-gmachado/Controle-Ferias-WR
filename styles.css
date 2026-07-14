@@ -2914,3 +2914,57 @@ tbody tr:last-child td { border-bottom: 0; }
     height: 104px;
   }
 }
+
+
+/* v8.4 — título centralizado no banner principal */
+.hero.hero-banner {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 24px;
+}
+
+.hero.hero-banner .hero-title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px 96px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.hero.hero-banner .hero-title h1 {
+  margin: 0;
+  max-width: min(900px, 100%);
+  line-height: 1.08;
+}
+
+.hero.hero-banner .hero-actions {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2;
+}
+
+@media (max-width: 760px) {
+  .hero.hero-banner {
+    min-height: 180px;
+    padding: 16px;
+  }
+
+  .hero.hero-banner .hero-title {
+    padding: 24px 18px 64px;
+  }
+
+  .hero.hero-banner .hero-title h1 {
+    font-size: clamp(1.35rem, 6vw, 2rem);
+  }
+
+  .hero.hero-banner .hero-actions {
+    right: 50%;
+    bottom: 14px;
+    transform: translateX(50%);
+  }
+}

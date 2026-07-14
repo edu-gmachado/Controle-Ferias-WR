@@ -9,7 +9,7 @@
   const TEMPORARY_CHANGES_COLLECTION = 'temporaryChanges';
   const AUDIT_COLLECTION = 'auditLogs';
   const AUDIT_LIMIT = 100;
-  const DATA_VERSION = 830;
+  const DATA_VERSION = 840;
 
   function createFeriasCloudService(authService) {
     let db = null;

@@ -165,7 +165,6 @@
       auditActionFilter: $('#auditActionFilter'),
       auditTable: $('#auditTable'),
       exportBtn: $('#exportBtn'),
-      exportBtnTop: $('#exportBtnTop'),
       importFile: $('#importFile'),
       installAppBtn: $('#installAppBtn'),
       toast: $('#toast')
@@ -262,7 +261,6 @@
 
     els.settingsForm.addEventListener('submit', saveSettings);
     els.exportBtn.addEventListener('click', exportBackup);
-    els.exportBtnTop.addEventListener('click', exportBackup);
     els.importFile.addEventListener('change', importBackup);
     els.loginForm.addEventListener('submit', loginToCloud);
     els.logoutBtn.addEventListener('click', logoutFromCloud);
@@ -436,15 +434,32 @@
   }
 
   function updateAdminOnlyVisibility() {
-    if (!els.settingsPanel) return;
     const firebaseEnabled = Boolean(window.FERIAS_FIREBASE_CONFIG && window.FERIAS_FIREBASE_CONFIG.enabled);
-    const shouldHideSettings = firebaseEnabled ? cloudRole !== 'admin' : false;
-    els.settingsPanel.classList.toggle('hidden', shouldHideSettings);
+    const isAdmin = firebaseEnabled ? cloudRole === 'admin' : true;
+    const adminSections = document.querySelectorAll('.admin-only-section');
 
-    if (shouldHideSettings) {
-      els.settingsForm.classList.add('hidden');
-      els.toggleSettingsBtn.textContent = 'Mostrar configurações de escala';
-      els.toggleSettingsBtn.setAttribute('aria-expanded', 'false');
+    adminSections.forEach((section) => {
+      section.classList.toggle('hidden', !isAdmin);
+      section.setAttribute('aria-hidden', String(!isAdmin));
+      if ('inert' in section) section.inert = !isAdmin;
+    });
+
+    if (!isAdmin) {
+      if (els.settingsForm) els.settingsForm.classList.add('hidden');
+      if (els.toggleSettingsBtn) {
+        els.toggleSettingsBtn.textContent = 'Mostrar configurações de escala';
+        els.toggleSettingsBtn.setAttribute('aria-expanded', 'false');
+      }
+      if (els.membersPanelContent) els.membersPanelContent.classList.add('hidden');
+      if (els.toggleMembersBtn) {
+        els.toggleMembersBtn.textContent = 'Mostrar membros do time';
+        els.toggleMembersBtn.setAttribute('aria-expanded', 'false');
+      }
+      if (els.auditHistoryContent) els.auditHistoryContent.classList.add('hidden');
+      if (els.toggleAuditBtn) {
+        els.toggleAuditBtn.textContent = 'Ver histórico de alterações';
+        els.toggleAuditBtn.setAttribute('aria-expanded', 'false');
+      }
     }
   }
 
@@ -568,7 +583,7 @@
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('./service-worker.js?v=8.0.2', { updateViaCache: 'none' })
+    navigator.serviceWorker.register('./service-worker.js?v=8.1.0', { updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         registration.addEventListener('updatefound', () => {

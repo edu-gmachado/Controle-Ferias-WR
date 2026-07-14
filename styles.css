@@ -2717,3 +2717,200 @@ tbody tr:last-child td { border-bottom: 0; }
     padding: 12px;
   }
 }
+
+
+/* v8.2 — personalização visual WR */
+.hero.hero-banner {
+  position: relative;
+  overflow: hidden;
+  min-height: 220px;
+  align-items: flex-end;
+  background:
+    linear-gradient(90deg, rgba(8, 15, 33, 0.66) 0%, rgba(8, 15, 33, 0.42) 32%, rgba(8, 15, 33, 0.28) 58%, rgba(8, 15, 33, 0.48) 100%),
+    url('assets/header-banner.jpg') center/cover no-repeat;
+}
+
+.hero.hero-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero.hero-banner h1 {
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.hero.hero-banner p {
+  color: rgba(255,255,255,0.88);
+  max-width: 720px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.22);
+}
+
+.hero.hero-banner .eyebrow {
+  color: #fff7c2;
+  background: rgba(17, 24, 39, 0.45);
+  border-color: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.registration-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.93) 54%, rgba(255,255,255,0.97) 100%),
+    url('assets/cadastro-bg.png') center/cover no-repeat;
+  border-color: rgba(244, 114, 182, 0.14);
+}
+
+.registration-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+  pointer-events: none;
+}
+
+.registration-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.registration-panel .field input,
+.registration-panel .field select,
+.registration-panel .field textarea,
+.registration-panel .vacation-day-preview,
+.registration-panel .warning-box {
+  background-color: rgba(255,255,255,0.96);
+}
+
+.registration-panel .section-heading {
+  background: linear-gradient(135deg, rgba(17,24,39,0.92) 0%, rgba(31,41,55,0.92) 55%, rgba(51,65,85,0.92) 100%);
+}
+
+.day-panel-below .day-status {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 920px) {
+  .day-panel-below .day-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hero.hero-banner {
+    min-height: 180px;
+    background-position: center center;
+  }
+
+  .registration-panel {
+    background-position: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .day-panel-below .day-status {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* v8.3 — mover identidade visual para a tela de login */
+.login-screen {
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.82) 0%, rgba(17, 24, 39, 0.78) 45%, rgba(30, 41, 59, 0.82) 100%),
+    url('assets/cadastro-bg.png') center/cover no-repeat;
+}
+
+.login-screen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 16% 16%, rgba(255,255,255,0.14), transparent 22rem),
+    radial-gradient(circle at 84% 12%, rgba(255,255,255,0.08), transparent 18rem),
+    radial-gradient(circle at 82% 82%, rgba(255,255,255,0.10), transparent 22rem);
+}
+
+.login-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(255,255,255,0.26);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(12px);
+}
+
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 124px;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(59, 130, 246, 0.18), rgba(168, 85, 247, 0.16));
+  pointer-events: none;
+}
+
+.login-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-mark {
+  background: linear-gradient(145deg, #9d174d, #312e81 60%, #0f766e);
+}
+
+.login-brand h1 {
+  color: #111827;
+}
+
+.login-brand p {
+  color: #475569;
+}
+
+/* remove personalização do cadastro e volta ao painel padrão */
+.registration-panel,
+.panel.registration-panel {
+  position: static;
+  overflow: visible;
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.registration-panel::before,
+.panel.registration-panel::before {
+  content: none;
+}
+
+.registration-panel > *,
+.panel.registration-panel > * {
+  position: static;
+  z-index: auto;
+}
+
+.registration-panel .field input,
+.registration-panel .field select,
+.registration-panel .field textarea,
+.registration-panel .vacation-day-preview,
+.registration-panel .warning-box,
+.panel.registration-panel .field input,
+.panel.registration-panel .field select,
+.panel.registration-panel .field textarea,
+.panel.registration-panel .vacation-day-preview,
+.panel.registration-panel .warning-box {
+  background-color: #fff;
+}
+
+.registration-panel .section-heading,
+.panel.registration-panel .section-heading {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 58%, #334155 100%);
+}
+
+@media (max-width: 760px) {
+  .login-screen {
+    background-position: center center;
+  }
+
+  .login-card::before {
+    height: 104px;
+  }
+}

@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'controleFerias3TurnoPWA.v5.10';
   const LEGACY_STORAGE_KEYS = ['controleFerias3TurnoPWA.v4', 'controleFerias3TurnoPWA.v3', 'controleFerias3TurnoPWA.v1'];
-  const APP_VERSION = 802;
+  const APP_VERSION = 830;
   const VACATIONS_PAGE_SIZE = 15;
   const GROUPS = ['azul', 'amarelo', 'vermelho', 'verde'];
   const GROUP_CLASS = { azul: 'blue', amarelo: 'yellow', vermelho: 'red', verde: 'green' };
@@ -583,7 +583,7 @@
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('./service-worker.js?v=8.1.0', { updateViaCache: 'none' })
+    navigator.serviceWorker.register('./service-worker.js?v=8.3.0', { updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         registration.addEventListener('updatefound', () => {
@@ -870,15 +870,12 @@
     const statusText = attention.isAttention ? 'Atenção' : 'Cobertura boa';
     const statusClass = attention.isAttention ? 'alert' : 'ok';
     const workingGroups = workingGroupsForDate(selectedDate).map(groupName).join(', ');
-    const reasonText = attention.isAttention ? attention.reasons.join(' • ') : 'Até 2 pessoas de setores diferentes em férias é permitido pela regra.';
-
     els.dayTitle.textContent = formatLongDate(selectedDate);
     els.daySubtitle.textContent = `3º turno • trabalham: ${workingGroups} • ${statusText}`;
     els.dayStatus.innerHTML = `
       <div class="status-mini status-overview"><span>Status</span><strong><span class="pill ${statusClass}">${statusText}</span></strong></div>
       <div class="status-mini status-scheduled"><span>Escalados no dia</span><strong>${expected}</strong></div>
       <div class="status-mini status-present"><span>Presentes</span><strong>${day.present.length}</strong></div>
-      <div class="status-mini status-attention"><span>Regra de atenção</span><strong class="status-reason">${escapeHtml(reasonText)}</strong></div>
     `;
 
     if (els.presentCount) els.presentCount.textContent = day.present.length;
